@@ -31,6 +31,16 @@ describe("members", () => {
     const me = await call(env, "GET", "/api/v1/me", { token: created.body.apiKey });
     assert.equal(me.status, 200);
     assert.equal(me.body.member.displayName, "Danny");
+    assert.deepEqual(me.body.characters, []);
+  });
+
+  it("lists the member's characters in camelCase after an upload", async () => {
+    const env = createEnv();
+    const key = await addMember(env, "Danny");
+    await call(env, "POST", "/api/v1/snapshots", { token: key, body: upload(ALICE, "Alice Example", []) });
+    const me = await call(env, "GET", "/api/v1/me", { token: key });
+    assert.deepEqual(Object.keys(me.body.characters[0]).sort(), ["contentId", "homeWorld", "lastUploadAt", "name"]);
+    assert.equal(me.body.characters[0].contentId, ALICE);
   });
 
   it("disables admin endpoints when no admin token is configured", async () => {

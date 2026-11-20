@@ -65,7 +65,8 @@ route("GET", "/healthz", async () => json({ ok: true }));
 route("GET", "/api/v1/me", async (request, env) => {
   const member = await requireMember(request, env);
   const characters = await env.DB.prepare(
-    "SELECT content_id, name, home_world, last_upload_at FROM characters WHERE member_id = ? ORDER BY name",
+    `SELECT content_id AS contentId, name, home_world AS homeWorld, last_upload_at AS lastUploadAt
+     FROM characters WHERE member_id = ? ORDER BY name`,
   )
     .bind(member.id)
     .all();
