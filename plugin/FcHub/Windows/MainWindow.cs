@@ -69,7 +69,7 @@ public sealed class MainWindow : Window
 
         var last = allagan.LastEventAt is { } at ? $"{(DateTimeOffset.UtcNow - at).TotalSeconds:0}s ago" : "never";
         ImGui.TextColored(Muted,
-            $"IPC events: added {allagan.ItemAddedCount} · removed {allagan.ItemRemovedCount} · " +
+            $"IPC events: added {allagan.ItemAddedCount:N0} · removed {allagan.ItemRemovedCount:N0} · " +
             $"retainer changed {allagan.RetainerChangedCount} · initialized {allagan.InitializedCount} · last {last}");
     }
 
@@ -99,7 +99,7 @@ public sealed class MainWindow : Window
         var totalItems = snapshot.Owners.Sum(o => o.Items.Count);
         ImGui.TextUnformatted(
             $"{snapshot.Character.Name} @ {snapshot.Character.HomeWorld ?? "?"} · {snapshot.Owners.Count} owners · " +
-            $"{totalItems} items ({diag.RawRows} raw rows) · built {age:0}s ago");
+            $"{totalItems:N0} items ({diag.RawRows:N0} raw rows) · built {age:0}s ago");
         ImGui.TextColored(diag.CharacterIdsMatch ? Muted : Bad,
             $"Build {diag.TotalTime.TotalMilliseconds:0.0} ms (IPC {diag.IpcTime.TotalMilliseconds:0.0} ms) · " +
             $"serialize {(probe.LatestSerializeTime?.TotalMilliseconds ?? 0):0.0} ms · payload {(probe.LatestPayloadBytes ?? 0) / 1024.0:0.0} KB · " +
@@ -147,7 +147,7 @@ public sealed class MainWindow : Window
             ImGui.TableNextColumn();
             ImGui.TextUnformatted(owner.OwnerId);
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(owner.Items.Count.ToString());
+            ImGui.TextUnformatted(owner.Items.Count.ToString("N0"));
             ImGui.TableNextColumn();
             var categories = owner.Items.Select(i => i.Category).Distinct().OrderBy(c => c);
             ImGui.TextUnformatted(string.Join(", ", categories));
@@ -155,7 +155,7 @@ public sealed class MainWindow : Window
             if (ImGui.IsItemHovered() && owner.Items.Count > 0)
             {
                 ImGui.SetTooltip(string.Join("\n", owner.Items.Take(15).Select(i =>
-                    $"{i.Quantity}x {i.Name}{(i.IsHq ? " (HQ)" : string.Empty)} — {i.Location}")) +
+                    $"{i.Quantity:N0}x {i.Name}{(i.IsHq ? " (HQ)" : string.Empty)} — {i.Location}")) +
                     (owner.Items.Count > 15 ? $"\n… and {owner.Items.Count - 15} more" : string.Empty));
             }
         }

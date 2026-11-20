@@ -47,3 +47,7 @@ Also check `/xllog` for `[FcHub]` errors.
 ✅ After logging out and back in, **without** visiting a bell or the FC chest: all 3 retainers (117/116/128 items) and the FC chest (221) come back from Allagan Tools' saved data. Retainer names come back from FC Hub's own config. Build takes 2.0 ms (IPC 2.0 ms), serializing 0.7 ms. Players only need to open each retainer and the FC chest once, ever (and again to refresh them).
 
 The Unknown owner `86131342900265472` decodes as an Allagan Tools housing id (`ward<<56 | plot<<48 | room<<32 | world<<16 | placeNameZone`): ward index 1, plot index 50, world 409 (Kraken), zone 512, which is likely Ward 2, Plot 51. It's empty because that house's storage hasn't been loaded.
+
+## Results — run 3 (owner classification)
+
+✅ The Unknown row is gone. The empty house was listed as "Housing: Ishgard · Ward 2 · Plot 51" (correct address). After opening the indoor furnishings, it appeared in the table within ~5 s with 107 items. Company Credits named correctly.
