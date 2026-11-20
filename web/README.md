@@ -1,6 +1,6 @@
 # FC Hub web API
 
-Stores inventory snapshots uploaded by the FC Hub plugin and answers "who has this item, how many, and where?".
+Stores inventory snapshots uploaded by the FC Hub plugin and answers "who has this item, how many, and where?", through a JSON API and a small web UI (`public/`).
 
 - Zero runtime dependencies: web-standard `Request`/`Response` and plain SQL. See [ADR 0002](../docs/adr/0002-zero-dependency-backend.md).
 - Runs on **Cloudflare Workers + D1** (`src/worker.ts`) or **Node 22.18+ with built-in SQLite** (`src/node.ts`).
@@ -14,8 +14,10 @@ npm install            # only needed for typecheck / wrangler
 npm run typecheck
 
 # Run locally on Node with a SQLite file (applies migrations automatically)
-ADMIN_TOKEN=dev-admin npm start          # http://127.0.0.1:8787
+ADMIN_TOKEN=dev-admin npm start          # API + UI on http://localhost:8787
 ```
+
+Use `localhost` rather than `127.0.0.1` in the browser so the `Secure` session cookie is accepted over plain http.
 
 PowerShell: `$env:ADMIN_TOKEN="dev-admin"; npm start`.
 
@@ -41,10 +43,13 @@ curl -X POST https://fc-hub.<you>.workers.dev/api/v1/admin/members \
 
 ## API
 
-All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. Errors look like `{"error":{"code","message","details?"}}`.
+All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
 
 | Method | Path | Purpose |
 |---|---|---|
+| `GET` | `/` | Web UI (search + "who's uploaded"); static files from `public/` |
+| `POST` | `/api/v1/session` | Browser sign-in: `{"apiKey"}` → HttpOnly session cookie |
+| `DELETE` | `/api/v1/session` | Sign out |
 | `GET` | `/healthz` | Liveness |
 | `GET` | `/api/v1/me` | The key's member and their characters (plugin "Test connection") |
 | `POST` | `/api/v1/snapshots` | Upload changed sections (JSON, optionally `Content-Encoding: gzip`, ≤ 8 MB decompressed) |
@@ -81,9 +86,15 @@ Merge rules (`src/ingest.ts`):
 - A character belongs to the member whose key first uploaded it. Characters and retainers can only be updated by their own character. The FC chest and houses are shared, and the latest capture wins.
 - 64-bit ids are decimal strings.
 
+## Web UI
+
+Sign in with your personal key (the same one the plugin uses). The server stores it in a `__Host-` cookie that is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Search is by name or item id, with results grouped item → holder → slot, and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's and FC chest's data is.
+
 ## Security notes
 
 - Member keys are 256-bit random values with an `fch_` prefix, stored only as SHA-256 hashes. The admin token is compared in constant time.
 - Upload bodies are size-capped *after* decompression (gzip-bomb safe) and strictly validated.
-- Responses send `nosniff`, `no-referrer` and `no-store`.
+- Browser sessions can only **read**. Uploads and admin actions need the `Authorization` header, which another site can't attach, so the cookie can't be abused for CSRF. Session endpoints also reject foreign `Origin`s.
+- Every response carries a strict Content-Security-Policy (`default-src 'none'`, same-origin scripts/styles only, no inline code, `frame-ancestors 'none'`), plus `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, COOP and (on https) HSTS. API responses are `no-store`.
+- The UI renders all data with `textContent`, never `innerHTML`.
 - Planned: Cloudflare Access (zero trust) in front of the web UI, and `workers_dev = false` once a custom domain is in place.
