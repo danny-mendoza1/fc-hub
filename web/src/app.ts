@@ -2,7 +2,8 @@ import { authenticateMember, clearSessionCookie, createMember, isAdmin, type Mem
 import { validateUpload } from "./contract.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { IngestError, ingestUpload } from "./ingest.ts";
-import { MAX_QUERY_LENGTH, overview, searchItems } from "./search.ts";
+import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
+import { MAX_QUERY_LENGTH, overview, ownerItems, searchItems } from "./search.ts";
 
 export interface AppEnv {
   DB: SqlDatabase;
@@ -10,6 +11,8 @@ export interface AppEnv {
   ADMIN_TOKEN?: string;
   /** Static UI files (web/public): the Workers assets binding, or a disk reader on Node. */
   ASSETS?: { fetch(request: Request): Promise<Response> };
+  /** Outbound fetch for item icons (tests inject a fake). Defaults to the global fetch. */
+  FETCH?: Fetcher;
 }
 
 /** Decompressed upload size cap; a full snapshot is ~250 KB, so this is generous. */
@@ -104,6 +107,24 @@ route("GET", "/api/v1/search", async (request, env) => {
 route("GET", "/api/v1/overview", async (request, env) => {
   await requireMember(request, env, true);
   return json({ characters: await overview(env.DB) });
+});
+
+/** One owner's items by section, for the "Who's uploaded" accordions (loaded on expand). */
+route("GET", "/api/v1/owners/:ownerId/items", async (request, env, params) => {
+  await requireMember(request, env, true);
+  const ownerId = params.ownerId ?? "";
+  if (!/^[1-9][0-9]{0,19}$/.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
+  const result = await ownerItems(env.DB, ownerId);
+  if (!result) throw new HttpError(404, "not_found", "No such owner");
+  return json(result);
+});
+
+/** Item icon by game icon id, proxied from XIVAPI (see icons.ts). Members only, so it isn't a public proxy. */
+route("GET", "/api/v1/icons/:iconId", async (request, env, params) => {
+  await requireMember(request, env, true);
+  const iconId = params.iconId ?? "";
+  if (!ICON_ID_PATTERN.test(iconId)) throw new HttpError(400, "invalid_icon", "iconId must be a positive number");
+  return fetchIcon(Number(iconId), env.FETCH ?? ((input, init) => fetch(input, init)));
 });
 
 /** Browser sign-in: trade the member's API key for an HttpOnly session cookie. */
@@ -247,6 +268,8 @@ export const CONTENT_SECURITY_POLICY = [
  * so a deploy shows up immediately.
  */
 function cacheControl(pathname: string, status: number): string {
+  // Icons never change for a given id; private because the route requires sign-in.
+  if (pathname.startsWith("/api/v1/icons/") && status === 200) return "private, max-age=2592000, immutable";
   if (pathname.startsWith("/api/")) return "no-store";
   if (pathname.startsWith("/assets/") && status === 200) return "public, max-age=31536000, immutable";
   return "no-cache";
