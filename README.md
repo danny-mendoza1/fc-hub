@@ -37,7 +37,7 @@ Each member runs a lightweight Dalamud plugin that collects what their character
   - [x] Research how inventory data is gathered
   - [x] IPC probe plugin: prove we can read Allagan Tools data in-game
   - [x] Web API + storage
-  - [ ] Plugin uploads snapshots
+  - [x] Plugin uploads snapshots (only changed sections, gzip, settings window)
   - [ ] Search UI
   - [ ] Distribution via a custom Dalamud plugin repository
 - **Later ideas:** shared Wondrous Tails duties, dungeon/trial/raid unlock comparison, quest prerequisites, homelab hosting with zero-trust access.

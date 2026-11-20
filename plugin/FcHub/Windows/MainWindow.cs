@@ -6,10 +6,11 @@ using Dalamud.Interface.Windowing;
 using FcHub.Allagan;
 using FcHub.Game;
 using FcHub.Snapshot;
+using FcHub.Upload;
 
 namespace FcHub.Windows;
 
-/// <summary>Probe window: shows what FC Hub can see through Allagan Tools, and how much it costs.</summary>
+/// <summary>Main window: what FC Hub can see through Allagan Tools, and the upload status.</summary>
 public sealed class MainWindow : Window
 {
     private static readonly Vector4 Good = new(0.4f, 0.9f, 0.4f, 1f);
@@ -18,14 +19,20 @@ public sealed class MainWindow : Window
 
     private readonly AllaganToolsIpc allagan;
     private readonly OwnerNameTracker names;
-    private readonly ProbeService probe;
+    private readonly SyncService probe;
+    private readonly Uploader uploader;
+    private readonly Configuration configuration;
+    private readonly Action openSettings;
 
-    public MainWindow(AllaganToolsIpc allagan, OwnerNameTracker names, ProbeService probe)
-        : base("FC Hub — probe##FcHubMain")
+    public MainWindow(AllaganToolsIpc allagan, OwnerNameTracker names, SyncService probe, Uploader uploader, Configuration configuration, Action openSettings)
+        : base("FC Hub##FcHubMain")
     {
         this.allagan = allagan;
         this.names = names;
         this.probe = probe;
+        this.uploader = uploader;
+        this.configuration = configuration;
+        this.openSettings = openSettings;
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(560, 380),
@@ -38,6 +45,7 @@ public sealed class MainWindow : Window
     public override void Draw()
     {
         DrawStatus();
+        DrawUploadStatus();
         ImGui.Separator();
 
         if (ImGui.Button("Refresh"))
@@ -52,7 +60,19 @@ public sealed class MainWindow : Window
         }
 
         ImGui.SameLine();
-        ImGui.TextColored(Muted, $"Auto-rebuilds {ProbeService.Debounce.TotalSeconds:0}s after inventory changes settle.");
+        if (ImGui.Button("Upload now"))
+        {
+            probe.RequestRefresh(upload: true);
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Settings"))
+        {
+            openSettings();
+        }
+
+        ImGui.TextColored(Muted,
+            $"Rebuilds {SyncService.Debounce.TotalSeconds:0}s after inventory changes and every {SyncService.PeriodicInterval.TotalSeconds:0}s; only changed sections are uploaded.");
 
         DrawLatest();
     }
@@ -71,6 +91,25 @@ public sealed class MainWindow : Window
         ImGui.TextColored(Muted,
             $"IPC events: added {allagan.ItemAddedCount:N0} · removed {allagan.ItemRemovedCount:N0} · " +
             $"retainer changed {allagan.RetainerChangedCount} · initialized {allagan.InitializedCount} · last {last}");
+    }
+
+    private void DrawUploadStatus()
+    {
+        if (!configuration.UploadEnabled)
+        {
+            ImGui.TextColored(Muted, "Uploads are off. Open Settings to connect to your FC Hub.");
+            return;
+        }
+
+        var status = uploader.Status;
+        var ok = !status.IsError && !uploader.Paused;
+        StatusLine($"Uploads: {status.Message}", ok);
+        if (status.LastSuccessAt is { } at)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Muted,
+                $"(last upload {(DateTimeOffset.UtcNow - at).TotalMinutes:0} min ago: {status.LastSections:N0} sections, {status.LastItems:N0} items)");
+        }
     }
 
     private static void StatusLine(string label, bool ok)
