@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <!-- Manifest fields read by DalamudPackager -->
+    <Author>Danny Mendoza</Author>
+    <Name>FC Hub</Name>
+    <Punchline>Share what's in your inventories with your Free Company.</Punchline>
+    <Description>Collects your characters', retainers' and FC chest inventories (via Allagan Tools) so your Free Company can search who has an item and where it is.
+Requires Allagan Tools.</Description>
+    <Tags>inventory;free company;crafting;retainers</Tags>
+    <RepoUrl>https://github.com/danny-mendoza1/fc-hub</RepoUrl>
+  </PropertyGroup>
+</Project>
