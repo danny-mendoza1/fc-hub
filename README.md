@@ -9,9 +9,9 @@ Each member runs a lightweight Dalamud plugin that collects what their character
 ## How it fits together
 
 ```
- FFXIV client                          Web (Cloudflare Workers + D1 → Docker later)
+ FFXIV client                          Web (Workers + D1 now, Docker later)
 ┌──────────────────────────────┐      ┌──────────────────────────────────────────┐
-│ Allagan Tools (existing)     │      │  API (Hono)        Storage (SQLite/D1)   │
+│ Allagan Tools (existing)     │      │  API (TypeScript)  Storage (SQLite/D1)   │
 │   scans bags/retainers/FC    │      │   POST /snapshots ───► latest snapshot   │
 │        │ IPC                 │ HTTPS│   GET  /search    ◄─── per character     │
 │        ▼                     │ ───► │                                          │
@@ -21,22 +21,22 @@ Each member runs a lightweight Dalamud plugin that collects what their character
 ```
 
 - **Collection:** Allagan Tools already reads every inventory container and persists it between sessions. FC Hub reads that data through Allagan Tools' public IPC instead of re-implementing the scanner. See [ADR 0001](docs/adr/0001-architecture.md).
-- **Storage + presentation:** a web app on Cloudflare (Workers + D1) for the fastest stand-up. It's built on portable pieces (Hono + Drizzle + SQLite) so it can move to a Docker container on a homelab behind Cloudflare Tunnel/Access later.
+- **Storage + presentation:** a zero-dependency TypeScript web API on Cloudflare (Workers + D1) for the fastest stand-up. The same code runs on Node's built-in SQLite, so it can move to a Docker container on a homelab behind Cloudflare Tunnel/Access later. See [ADR 0002](docs/adr/0002-zero-dependency-backend.md) and [web/README.md](web/README.md).
 
 ## Repository layout
 
 | Path | What |
 |---|---|
 | `plugin/` | Dalamud plugin (C#, .NET 10, Dalamud API 15) |
-| `web/` | Web API + UI *(coming next)* |
+| `web/` | Web API (TypeScript, Workers + D1 / Node + SQLite) |
 | `docs/adr/` | Architecture decision records |
 
 ## Roadmap
 
 - **Phase 1 — Shared inventory** *(in progress)*
   - [x] Research how inventory data is gathered
-  - [ ] IPC probe plugin: prove we can read Allagan Tools data in-game
-  - [ ] Web API + storage
+  - [x] IPC probe plugin: prove we can read Allagan Tools data in-game
+  - [x] Web API + storage
   - [ ] Plugin uploads snapshots
   - [ ] Search UI
   - [ ] Distribution via a custom Dalamud plugin repository

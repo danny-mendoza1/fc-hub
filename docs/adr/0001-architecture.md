@@ -1,6 +1,6 @@
 # ADR 0001 — Collector plugin via Allagan Tools IPC, portable web backend
 
-- **Status:** Accepted (Phase 1)
+- **Status:** Accepted (Phase 1). Decision 2's library choice (Hono + Drizzle) is superseded by [ADR 0002](0002-zero-dependency-backend.md).
 - **Date:** 2026-11-20
 
 ## Context
