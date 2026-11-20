@@ -1,4 +1,4 @@
-import { authenticateMember, createMember, isAdmin, type Member } from "./auth.ts";
+import { authenticateMember, clearSessionCookie, createMember, isAdmin, type Member, memberForKey, sessionCookie } from "./auth.ts";
 import { validateUpload } from "./contract.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { IngestError, ingestUpload } from "./ingest.ts";
@@ -8,6 +8,8 @@ export interface AppEnv {
   DB: SqlDatabase;
   /** Secret used only to create/revoke member keys. Unset → admin endpoints disabled. */
   ADMIN_TOKEN?: string;
+  /** Static UI files (web/public): the Workers assets binding, or a disk reader on Node. */
+  ASSETS?: { fetch(request: Request): Promise<Response> };
 }
 
 /** Decompressed upload size cap; a full snapshot is ~250 KB, so this is generous. */
@@ -37,23 +39,33 @@ function route(method: string, path: string, handler: Handler): void {
 
 /** Web-standard entry point shared by the Cloudflare Worker and the Node server. */
 export async function handle(request: Request, env: AppEnv): Promise<Response> {
-  const { pathname } = new URL(request.url);
+  const url = new URL(request.url);
+  return withSecurityHeaders(await dispatch(request, env, url), url);
+}
+
+async function dispatch(request: Request, env: AppEnv, url: URL): Promise<Response> {
   try {
     let pathMatched = false;
     for (const r of routes) {
-      const match = r.pattern.exec(pathname);
+      const match = r.pattern.exec(url.pathname);
       if (!match) continue;
       pathMatched = true;
       if (r.method !== request.method) continue;
       const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(match[i + 1] ?? "")]));
-      return withSecurityHeaders(await r.handler(request, env, params));
+      return await r.handler(request, env, params);
     }
-    return withSecurityHeaders(pathMatched ? error(405, "method_not_allowed", "Method not allowed") : error(404, "not_found", "Not found"));
+    if (pathMatched) return error(405, "method_not_allowed", "Method not allowed");
+
+    // Everything outside the API is the static UI.
+    if (env.ASSETS && (request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/")) {
+      return await env.ASSETS.fetch(request);
+    }
+    return error(404, "not_found", "Not found");
   } catch (err) {
-    if (err instanceof HttpError) return withSecurityHeaders(error(err.status, err.code, err.message, err.details));
-    if (err instanceof IngestError) return withSecurityHeaders(error(err.status, "rejected", err.message));
+    if (err instanceof HttpError) return error(err.status, err.code, err.message, err.details);
+    if (err instanceof IngestError) return error(err.status, "rejected", err.message);
     console.error("Unhandled error", err);
-    return withSecurityHeaders(error(500, "internal", "Internal server error"));
+    return error(500, "internal", "Internal server error");
   }
 }
 
@@ -63,7 +75,7 @@ route("GET", "/healthz", async () => json({ ok: true }));
 
 /** Lets the plugin's "Test connection" button confirm its key works. */
 route("GET", "/api/v1/me", async (request, env) => {
-  const member = await requireMember(request, env);
+  const member = await requireMember(request, env, true);
   const characters = await env.DB.prepare(
     `SELECT content_id AS contentId, name, home_world AS homeWorld, last_upload_at AS lastUploadAt
      FROM characters WHERE member_id = ? ORDER BY name`,
@@ -83,15 +95,33 @@ route("POST", "/api/v1/snapshots", async (request, env) => {
 });
 
 route("GET", "/api/v1/search", async (request, env) => {
-  await requireMember(request, env);
+  await requireMember(request, env, true);
   const q = new URL(request.url).searchParams.get("q") ?? "";
   if (q.length > MAX_QUERY_LENGTH) throw new HttpError(400, "query_too_long", `Search is limited to ${MAX_QUERY_LENGTH} characters`);
   return json(await searchItems(env.DB, q));
 });
 
 route("GET", "/api/v1/overview", async (request, env) => {
-  await requireMember(request, env);
+  await requireMember(request, env, true);
   return json({ characters: await overview(env.DB) });
+});
+
+/** Browser sign-in: trade the member's API key for an HttpOnly session cookie. */
+route("POST", "/api/v1/session", async (request, env) => {
+  assertSameOrigin(request);
+  const body = (await readJson(request)) as { apiKey?: unknown };
+  const member = await memberForKey(env.DB, typeof body?.apiKey === "string" ? body.apiKey.trim() : null);
+  if (!member) throw new HttpError(401, "unauthorized", "That key isn't valid (or has been revoked).");
+  const response = json({ member });
+  response.headers.append("set-cookie", sessionCookie((body.apiKey as string).trim()));
+  return response;
+});
+
+route("DELETE", "/api/v1/session", async (request) => {
+  assertSameOrigin(request);
+  const response = new Response(null, { status: 204 });
+  response.headers.append("set-cookie", clearSessionCookie());
+  return response;
 });
 
 route("POST", "/api/v1/admin/members", async (request, env) => {
@@ -129,10 +159,18 @@ export class HttpError extends Error {
   }
 }
 
-async function requireMember(request: Request, env: AppEnv): Promise<Member> {
-  const member = await authenticateMember(env.DB, request);
+async function requireMember(request: Request, env: AppEnv, allowCookie = false): Promise<Member> {
+  const member = await authenticateMember(env.DB, request, allowCookie);
   if (!member) throw new HttpError(401, "unauthorized", "Missing or invalid API key");
   return member;
+}
+
+/** Rejects browser requests coming from another site (defence in depth on top of SameSite). */
+function assertSameOrigin(request: Request): void {
+  const origin = request.headers.get("origin");
+  if (origin !== null && origin !== new URL(request.url).origin) {
+    throw new HttpError(403, "cross_origin", "Cross-origin request rejected");
+  }
 }
 
 async function requireAdmin(request: Request, env: AppEnv): Promise<void> {
@@ -188,10 +226,31 @@ function error(status: number, code: string, message: string, details?: unknown)
   return json({ error: { code, message, ...(details === undefined ? {} : { details }) } }, status);
 }
 
-function withSecurityHeaders(response: Response): Response {
+/**
+ * Strict CSP: only our own scripts/styles, no inline code, no framing, no third-party content.
+ * Applied to every response (harmless on JSON) so the UI can't accidentally ship without it.
+ */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "form-action 'self'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+function withSecurityHeaders(response: Response, url: URL): Response {
   const headers = new Headers(response.headers);
+  headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
   headers.set("x-content-type-options", "nosniff");
+  headers.set("x-frame-options", "DENY");
   headers.set("referrer-policy", "no-referrer");
-  headers.set("cache-control", "no-store");
-  return new Response(response.body, { status: response.status, headers });
+  headers.set("cross-origin-opener-policy", "same-origin");
+  headers.set("permissions-policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+  // API data is per-user and should never be cached; UI files are revalidated on every load.
+  headers.set("cache-control", url.pathname.startsWith("/api/") ? "no-store" : "no-cache");
+  if (url.protocol === "https:") headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
