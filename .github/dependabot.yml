@@ -1,0 +1,17 @@
+# Weekly dependency update PRs. Runtime deps are only react/react-dom (browser bundle);
+# everything else is build tooling.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      build-tooling:
+        patterns: ["vite", "@vitejs/*", "typescript", "@types/node", "wrangler"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

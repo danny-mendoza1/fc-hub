@@ -53,7 +53,7 @@ jobs:
           retention-days: 7
 
   web:
-    name: Web tests + typecheck
+    name: Web tests, typecheck + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -64,13 +64,17 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - name: Test
+      - name: Install (exact versions from the lockfile)
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck (API + React client)
+        run: npm run typecheck
+
+      - name: Build client
+        run: npm run build
+
+      - name: Test (API + built client)
         run: npm test
-
-      # Only the type-checking tools are installed (not wrangler), outside the project.
-      - name: Typecheck
-        run: |
-          npm install --prefix "$RUNNER_TEMP/tools" --no-save --no-audit --no-fund typescript@6 @types/node@22
-          ln -s "$RUNNER_TEMP/tools/node_modules" node_modules
-          node node_modules/typescript/bin/tsc --noEmit
