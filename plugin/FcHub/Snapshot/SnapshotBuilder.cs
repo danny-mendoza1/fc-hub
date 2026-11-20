@@ -21,6 +21,7 @@ public sealed class SnapshotBuilder
     private readonly IPlayerState playerState;
     private readonly ExcelSheet<Item> itemSheet;
     private readonly ExcelSheet<EventItem> eventItemSheet;
+    private readonly ExcelSheet<PlaceName> placeNameSheet;
     private readonly string pluginVersion;
 
     public SnapshotBuilder(
@@ -36,7 +37,14 @@ public sealed class SnapshotBuilder
         this.pluginVersion = pluginVersion;
         itemSheet = dataManager.GetExcelSheet<Item>();
         eventItemSheet = dataManager.GetExcelSheet<EventItem>();
+        placeNameSheet = dataManager.GetExcelSheet<PlaceName>();
     }
+
+    /// <summary>Items whose Item-sheet name is blank but that Allagan Tools still reports.</summary>
+    private static readonly Dictionary<uint, string> FallbackItemNames = new()
+    {
+        [80] = "Company Credits",
+    };
 
     public SnapshotResult Build()
     {
@@ -64,14 +72,24 @@ public sealed class SnapshotBuilder
         orderedOwners.AddRange(ownerIds.Where(id => id != contentId).OrderBy(id => id));
 
         var owners = new List<SnapshotOwner>(orderedOwners.Count);
+        var emptyOwners = new List<string>();
         var rawRows = 0;
         foreach (var ownerId in orderedOwners)
         {
             var raw = allagan.GetItems(ownerId);
             rawRows += raw.Count;
+            var kind = ResolveKind(ownerId, contentId, raw);
+            var name = names.NameOf(ownerId) ?? (kind == OwnerKind.Housing ? DescribeHouse(ownerId) : null);
             var items = raw.Where(i => !i.IsEmpty).Select(ToSnapshotItem).ToList();
-            var kind = ownerId == contentId ? OwnerKind.Character : InferKind(raw);
-            owners.Add(new SnapshotOwner(ownerId.ToString(), kind, names.NameOf(ownerId), items));
+
+            // Nothing to search; usually a house whose storage hasn't been loaded yet.
+            if (items.Count == 0)
+            {
+                emptyOwners.Add($"{kind}: {name ?? ownerId.ToString()}");
+                continue;
+            }
+
+            owners.Add(new SnapshotOwner(ownerId.ToString(), kind, name, items));
         }
 
         var ipcElapsed = stopwatch.Elapsed;
@@ -93,23 +111,41 @@ public sealed class SnapshotBuilder
             AllaganCurrentCharacter: allaganCharacter,
             CharacterIdsMatch: allaganCharacter == contentId,
             RawRows: rawRows,
+            EmptyOwners: emptyOwners,
             IpcTime: ipcElapsed,
             TotalTime: stopwatch.Elapsed));
     }
 
-    private static OwnerKind InferKind(IReadOnlyList<AllaganItem> items)
+    /// <summary>
+    /// An owner's kind isn't exposed over IPC. Use, in order: the logged-in character, where its
+    /// items live, what we've learned from game memory, and finally elimination. Besides the
+    /// character, Allagan Tools only reports retainers, the FC chest, and housing; we learn
+    /// retainer and FC ids ourselves, so anything left over is housing.
+    /// </summary>
+    private OwnerKind ResolveKind(ulong ownerId, ulong contentId, IReadOnlyList<AllaganItem> items)
     {
-        // An owner's kind isn't exposed over IPC; infer it from where its items live.
+        if (ownerId == contentId)
+        {
+            return OwnerKind.Character;
+        }
+
         foreach (var item in items)
         {
-            var kind = Locations.KindOf(item.SortedCategory);
-            if (kind != OwnerKind.Unknown)
+            var fromItems = Locations.KindOf(item.SortedCategory);
+            if (fromItems != OwnerKind.Unknown)
             {
-                return kind;
+                return fromItems;
             }
         }
 
-        return OwnerKind.Unknown;
+        return names.KindOf(ownerId) ?? OwnerKind.Housing;
+    }
+
+    private string DescribeHouse(ulong ownerId)
+    {
+        var house = AllaganHouseId.From(ownerId);
+        var district = placeNameSheet.GetRowOrDefault(house.PlaceNameId)?.Name.ExtractText();
+        return house.Describe(district);
     }
 
     private SnapshotItem ToSnapshotItem(AllaganItem item)
@@ -133,7 +169,13 @@ public sealed class SnapshotBuilder
     {
         if (itemSheet.GetRowOrDefault(itemId) is { } row)
         {
-            return (row.Name.ExtractText(), row.Icon);
+            var name = row.Name.ExtractText();
+            if (name.Length == 0)
+            {
+                name = FallbackItemNames.GetValueOrDefault(itemId, $"Unknown item #{itemId}");
+            }
+
+            return (name, row.Icon);
         }
 
         if (eventItemSheet.GetRowOrDefault(itemId) is { } eventRow)
@@ -149,6 +191,7 @@ public sealed record SnapshotDiagnostics(
     ulong AllaganCurrentCharacter,
     bool CharacterIdsMatch,
     int RawRows,
+    IReadOnlyList<string> EmptyOwners,
     TimeSpan IpcTime,
     TimeSpan TotalTime);
 
