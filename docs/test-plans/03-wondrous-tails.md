@@ -3,7 +3,7 @@
 **Goal:** confirm the plugin reads the journal correctly in every state, and the website shows books and duties in common.
 
 ## Setup
-1. Merge the PR, deploy the web (`cd web && npm run deploy`; it applies no migration by itself, so run `npm run db:migrate:remote` first, which adds the `wondrous_tails` table).
+1. Merge the PR, then in `web/`: `npm run db:migrate:remote` (adds the `wondrous_tails` table) **before** `npm run deploy`.
 2. Release the plugin: `git tag v0.3.0.0 && git push origin v0.3.0.0`. Players update in `/xlplugins`.
 3. In game: `/fchub` → expand **Wondrous Tails** at the bottom.
 
