@@ -26,16 +26,51 @@ export function bearerToken(request: Request): string | null {
   return scheme?.toLowerCase() === "bearer" && token ? token.trim() : null;
 }
 
-/** Resolves a bearer API key to an active member, or null. */
-export async function authenticateMember(db: SqlDatabase, request: Request): Promise<Member | null> {
-  const token = bearerToken(request);
-  if (!token || !token.startsWith(KEY_PREFIX)) return null;
+/**
+ * Browser session cookie. `__Host-` forces Secure, Path=/ and no Domain, so it can't be set or
+ * read by other subdomains. HttpOnly keeps it away from page scripts. SameSite=Strict keeps it
+ * off cross-site requests.
+ */
+export const SESSION_COOKIE = "__Host-fchub_session";
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
+export function readCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index > 0 && part.slice(0, index).trim() === name) return decodeURIComponent(part.slice(index + 1).trim());
+  }
+  return null;
+}
+
+export function sessionCookie(apiKey: string): string {
+  return `${SESSION_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
+}
+
+export function clearSessionCookie(): string {
+  return `${SESSION_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0`;
+}
+
+/** Looks up an active member by API key. */
+export async function memberForKey(db: SqlDatabase, key: string | null): Promise<Member | null> {
+  if (!key || !key.startsWith(KEY_PREFIX)) return null;
   const row = await db
     .prepare("SELECT id, display_name FROM members WHERE key_hash = ? AND revoked_at IS NULL")
-    .bind(await hashKey(token))
+    .bind(await hashKey(key))
     .first<{ id: number; display_name: string }>();
   return row ? { id: row.id, displayName: row.display_name } : null;
+}
+
+/**
+ * Resolves the caller to an active member. The bearer header always works; the session cookie
+ * only when `allowCookie` is set, which we do for read-only GET routes. Anything that changes
+ * data needs the header, which a cross-site page can't attach, so cookies can't be used for CSRF.
+ */
+export async function authenticateMember(db: SqlDatabase, request: Request, allowCookie = false): Promise<Member | null> {
+  const bearer = bearerToken(request);
+  if (bearer) return memberForKey(db, bearer);
+  return allowCookie ? memberForKey(db, readCookie(request, SESSION_COOKIE)) : null;
 }
 
 /** Constant-time comparison for the admin token, so response timing doesn't leak it. */

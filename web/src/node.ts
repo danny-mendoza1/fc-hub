@@ -10,17 +10,19 @@ import { fileURLToPath } from "node:url";
 import { type AppEnv, handle } from "./app.ts";
 import { applyMigrations } from "./db/migrate.ts";
 import { NodeSqliteDatabase } from "./db/sqlite.ts";
+import { diskAssets } from "./static.ts";
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "127.0.0.1";
 const dbPath = process.env.FC_HUB_DB ?? "fc-hub.sqlite";
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
+const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const migrationsDir = join(webRoot, "migrations");
 
 const db = new NodeSqliteDatabase(dbPath);
 const applied = applyMigrations(db, migrationsDir);
 if (applied.length > 0) console.log(`Applied migrations: ${applied.join(", ")}`);
 
-const env: AppEnv = { DB: db, ADMIN_TOKEN: process.env.ADMIN_TOKEN };
+const env: AppEnv = { DB: db, ADMIN_TOKEN: process.env.ADMIN_TOKEN, ASSETS: diskAssets(join(webRoot, "public")) };
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
   try {
