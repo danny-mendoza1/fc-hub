@@ -52,7 +52,7 @@ curl -X POST https://fc-hub.<you>.workers.dev/api/v1/admin/members \
 
 ## API
 
-All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
+All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`, `owners/:id/items`, `icons/:id`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -64,6 +64,8 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `POST` | `/api/v1/snapshots` | Upload changed sections (JSON, optionally `Content-Encoding: gzip`, ≤ 8 MB decompressed) |
 | `GET` | `/api/v1/search?q=` | Items by name substring or exact item id, grouped item → owner → locations |
 | `GET` | `/api/v1/overview` | Every character's owners and per-section freshness |
+| `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Who's uploaded" accordions) |
+| `GET` | `/api/v1/icons/:iconId` | Item icon PNG, proxied from XIVAPI (see below) |
 | `POST` | `/api/v1/admin/members` | Create a member, returns their key once (admin token) |
 | `POST` | `/api/v1/admin/members/:id/revoke` | Revoke a member's key (admin token) |
 
@@ -97,7 +99,7 @@ Merge rules (`src/ingest.ts`):
 
 ## Web UI
 
-Sign in with your personal key (the same one the plugin uses). The server stores it in a `__Host-` cookie that is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Search is by name or item id, with results grouped item → holder → slot, and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's and FC chest's data is.
+Sign in with your personal key (the same one the plugin uses). The server stores it in a `__Host-` cookie that is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
 
 ## Security notes
 
@@ -107,4 +109,5 @@ Sign in with your personal key (the same one the plugin uses). The server stores
 - Every response carries a strict Content-Security-Policy (`default-src 'none'`, same-origin scripts/styles only, no inline code, `frame-ancestors 'none'`), plus `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, COOP and (on https) HSTS. API responses are `no-store`.
 - The UI is React, which escapes rendered text; `dangerouslySetInnerHTML` is never used. Vite's build has no inline scripts (a test checks `dist/index.html`), so the CSP needs no `unsafe-inline`.
 - Content-hashed `/assets/*` are cached `immutable`; `index.html` is `no-cache`.
+- **Item icons** come from [XIVAPI](https://v2.xivapi.com)'s asset endpoint (`ui/icon/{group}/{id}_hr1.tex` → PNG) through `/api/v1/icons/:iconId`, so the CSP stays `img-src 'self'` and members' browsers never contact a third party. It is not an open proxy: members only, numeric ids only, PNG responses only, size-capped; successes are cached privately for 30 days and failures aren't cached.
 - Planned: Cloudflare Access (zero trust) in front of the web UI, and `workers_dev = false` once a custom domain is in place.
