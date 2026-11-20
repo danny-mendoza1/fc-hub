@@ -28,7 +28,7 @@ Each member runs a lightweight Dalamud plugin that collects what their character
 | Path | What |
 |---|---|
 | `plugin/` | Dalamud plugin (C#, .NET 10, Dalamud API 15) |
-| `web/` | Web API (TypeScript, Workers + D1 / Node + SQLite) |
+| `web/` | Web API (TypeScript, Workers + D1 / Node + SQLite) and React UI (`web/client`) |
 | `docs/adr/` | Architecture decision records |
 
 ## Roadmap

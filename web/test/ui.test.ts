@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { CONTENT_SECURITY_POLICY, handle } from "../src/app.ts";
@@ -6,8 +7,12 @@ import { SESSION_COOKIE } from "../src/auth.ts";
 import { diskAssets } from "../src/static.ts";
 import { ALICE, addMember, call, createEnv, upload } from "./helpers.ts";
 
+const DIST = join(import.meta.dirname, "..", "dist");
+const BUILT = existsSync(join(DIST, "index.html"));
+const needsBuild = BUILT ? {} : { skip: "run `npm run build` first (CI builds before testing)" };
+
 function envWithAssets() {
-  return { ...createEnv(), ASSETS: diskAssets(join(import.meta.dirname, "..", "public")) };
+  return { ...createEnv(), ASSETS: diskAssets(DIST) };
 }
 
 async function signIn(env: ReturnType<typeof envWithAssets>, apiKey: string): Promise<Response> {
@@ -83,7 +88,7 @@ describe("browser sessions", () => {
   });
 });
 
-describe("static UI", () => {
+describe("static UI (built client)", needsBuild, () => {
   it("serves the page with a strict CSP and revalidation", async () => {
     const env = envWithAssets();
     const res = await handle(new Request("https://hub.test/"), env);
@@ -93,10 +98,21 @@ describe("static UI", () => {
     assert.equal(res.headers.get("x-frame-options"), "DENY");
     assert.equal(res.headers.get("cache-control"), "no-cache");
     assert.match(res.headers.get("strict-transport-security") ?? "", /max-age=/);
-    assert.match(await res.text(), /<script type="module" src="\/app.js">/);
+    assert.match(await res.text(), /<div id="root"><\/div>/);
+  });
 
-    const js = await handle(new Request("https://hub.test/app.js"), env);
+  it("caches hashed bundles forever but never caches misses", async () => {
+    const env = envWithAssets();
+    const bundle = readdirSync(join(DIST, "assets")).find((f) => f.endsWith(".js"));
+    assert.ok(bundle, "no JS bundle in dist/assets");
+    const js = await handle(new Request(`https://hub.test/assets/${bundle}`), env);
+    assert.equal(js.status, 200);
     assert.match(js.headers.get("content-type") ?? "", /javascript/);
+    assert.equal(js.headers.get("cache-control"), "public, max-age=31536000, immutable");
+
+    const missing = await handle(new Request("https://hub.test/assets/nope.js"), env);
+    assert.equal(missing.status, 404);
+    assert.equal(missing.headers.get("cache-control"), "no-cache");
   });
 
   it("keeps API responses uncacheable and API 404s as JSON", async () => {

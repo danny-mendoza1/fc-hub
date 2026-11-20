@@ -1,20 +1,29 @@
-# FC Hub web API
+# FC Hub web
 
-Stores inventory snapshots uploaded by the FC Hub plugin and answers "who has this item, how many, and where?", through a JSON API and a small web UI (`public/`).
+Stores inventory snapshots uploaded by the FC Hub plugin and answers "who has this item, how many, and where?", through a JSON API and a React web UI.
 
-- Zero runtime dependencies: web-standard `Request`/`Response` and plain SQL. See [ADR 0002](../docs/adr/0002-zero-dependency-backend.md).
-- Runs on **Cloudflare Workers + D1** (`src/worker.ts`) or **Node 22.18+ with built-in SQLite** (`src/node.ts`).
+| Path | What |
+|---|---|
+| `src/` | API: zero runtime dependencies, web-standard `Request`/`Response` and plain SQL ([ADR 0002](../docs/adr/0002-zero-dependency-backend.md)). Runs on **Cloudflare Workers + D1** (`worker.ts`) or **Node 22.18+ with built-in SQLite** (`node.ts`) |
+| `src/api-types.ts` | Response types shared with the client |
+| `client/` | React 19 + TypeScript + CSS Modules UI, built by Vite into `dist/` ([ADR 0003](../docs/adr/0003-react-client.md)) |
+| `migrations/` | SQL migrations (D1 and Node) |
+| `test/` | `node:test` suites for the API and the built client |
 
 ## Develop
 
 ```bash
 cd web
-npm test               # node:test suite, in-memory SQLite, no install needed
-npm install            # only needed for typecheck / wrangler
-npm run typecheck
+npm install
+npm run typecheck      # API and client
+npm run build          # client -> dist/
+npm test               # API tests + built-client tests (in-memory SQLite)
 
-# Run locally on Node with a SQLite file (applies migrations automatically)
-ADMIN_TOKEN=dev-admin npm start          # API + UI on http://localhost:8787
+# API + built UI on Node with a SQLite file (applies migrations automatically)
+ADMIN_TOKEN=dev-admin npm start          # http://localhost:8787
+
+# While working on the UI: hot reload on :5173, proxying /api to the server above
+npm run dev:ui                           # http://localhost:5173
 ```
 
 Use `localhost` rather than `127.0.0.1` in the browser so the `Secure` session cookie is accepted over plain http.
@@ -30,7 +39,7 @@ npx wrangler login
 npx wrangler d1 create fc-hub            # copy the printed database_id into wrangler.toml
 npm run db:migrate:remote                 # creates the tables in D1
 npx wrangler secret put ADMIN_TOKEN       # paste a long random string; keep it in your password manager
-npm run deploy                            # prints the https://fc-hub.<you>.workers.dev URL
+npm run deploy                            # builds the client, then prints the https://fc-hub.<you>.workers.dev URL
 ```
 
 Then create a key for each FC member (the key is shown **once**):
@@ -47,7 +56,7 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/` | Web UI (search + "who's uploaded"); static files from `public/` |
+| `GET` | `/` | Web UI (search + "who's uploaded"), served from the built `dist/` |
 | `POST` | `/api/v1/session` | Browser sign-in: `{"apiKey"}` → HttpOnly session cookie |
 | `DELETE` | `/api/v1/session` | Sign out |
 | `GET` | `/healthz` | Liveness |
@@ -96,5 +105,6 @@ Sign in with your personal key (the same one the plugin uses). The server stores
 - Upload bodies are size-capped *after* decompression (gzip-bomb safe) and strictly validated.
 - Browser sessions can only **read**. Uploads and admin actions need the `Authorization` header, which another site can't attach, so the cookie can't be abused for CSRF. Session endpoints also reject foreign `Origin`s.
 - Every response carries a strict Content-Security-Policy (`default-src 'none'`, same-origin scripts/styles only, no inline code, `frame-ancestors 'none'`), plus `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, COOP and (on https) HSTS. API responses are `no-store`.
-- The UI renders all data with `textContent`, never `innerHTML`.
+- The UI is React, which escapes rendered text; `dangerouslySetInnerHTML` is never used. Vite's build has no inline scripts (a test checks `dist/index.html`), so the CSP needs no `unsafe-inline`.
+- Content-hashed `/assets/*` are cached `immutable`; `index.html` is `no-cache`.
 - Planned: Cloudflare Access (zero trust) in front of the web UI, and `workers_dev = false` once a custom domain is in place.

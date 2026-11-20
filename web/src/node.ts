@@ -22,7 +22,7 @@ const db = new NodeSqliteDatabase(dbPath);
 const applied = applyMigrations(db, migrationsDir);
 if (applied.length > 0) console.log(`Applied migrations: ${applied.join(", ")}`);
 
-const env: AppEnv = { DB: db, ADMIN_TOKEN: process.env.ADMIN_TOKEN, ASSETS: diskAssets(join(webRoot, "public")) };
+const env: AppEnv = { DB: db, ADMIN_TOKEN: process.env.ADMIN_TOKEN, ASSETS: diskAssets(join(webRoot, "dist")) };
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
   try {

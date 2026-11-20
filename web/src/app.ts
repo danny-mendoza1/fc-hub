@@ -241,6 +241,17 @@ export const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+/**
+ * API data is per-user and never cached. Vite's /assets/* files have content hashes in their
+ * names, so they can be cached forever; everything else (index.html) is revalidated on each load
+ * so a deploy shows up immediately.
+ */
+function cacheControl(pathname: string, status: number): string {
+  if (pathname.startsWith("/api/")) return "no-store";
+  if (pathname.startsWith("/assets/") && status === 200) return "public, max-age=31536000, immutable";
+  return "no-cache";
+}
+
 function withSecurityHeaders(response: Response, url: URL): Response {
   const headers = new Headers(response.headers);
   headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
@@ -249,8 +260,7 @@ function withSecurityHeaders(response: Response, url: URL): Response {
   headers.set("referrer-policy", "no-referrer");
   headers.set("cross-origin-opener-policy", "same-origin");
   headers.set("permissions-policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
-  // API data is per-user and should never be cached; UI files are revalidated on every load.
-  headers.set("cache-control", url.pathname.startsWith("/api/") ? "no-store" : "no-cache");
+  headers.set("cache-control", cacheControl(url.pathname, response.status));
   if (url.protocol === "https:") headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
