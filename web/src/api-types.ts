@@ -8,6 +8,7 @@ import type { OverviewCharacter, SearchHit } from "./search.ts";
 export type { Holding, OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection, SearchHit } from "./search.ts";
 export type { Member } from "./auth.ts";
 export { MAX_QUERY_LENGTH } from "./search.ts";
+export type { BookStatus, CommonDuty, SlotStatus, WondrousTailsResponse, WtBook, WtSlot } from "./wondrous-tails.ts";
 
 export interface MeCharacter {
   contentId: string;

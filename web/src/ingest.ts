@@ -32,13 +32,7 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
   const { character } = upload;
   const capturedAt = clampCapturedAt(upload.capturedAt, now);
 
-  const claim = await db
-    .prepare("SELECT member_id FROM characters WHERE content_id = ?")
-    .bind(character.contentId)
-    .first<{ member_id: number }>();
-  if (claim && claim.member_id !== member.id) {
-    throw new IngestError(403, "This character is registered to another member.");
-  }
+  const upsertCharacter = await claimCharacter(db, member, character, now);
 
   const ownerIds = JSON.stringify(upload.owners.map((o) => o.ownerId));
   const existingOwners = await db
@@ -54,17 +48,7 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
   const sectionTime = new Map(existingSections.results.map((s) => [`${s.owner_id}\u0000${s.section}`, s.captured_at]));
 
   const result: IngestResult = { sectionsWritten: 0, itemsWritten: 0, sectionsSkippedStale: [], ownersRejected: [] };
-  const statements: SqlStatement[] = [
-    db
-      .prepare(
-        `INSERT INTO characters (content_id, member_id, name, home_world_id, home_world, last_upload_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (content_id) DO UPDATE SET
-           name = excluded.name, home_world_id = excluded.home_world_id,
-           home_world = excluded.home_world, last_upload_at = excluded.last_upload_at`,
-      )
-      .bind(character.contentId, member.id, character.name, character.homeWorldId, character.homeWorld, now.toISOString()),
-  ];
+  const statements: SqlStatement[] = [upsertCharacter];
 
   for (const owner of upload.owners) {
     const existing = ownerById.get(owner.ownerId);
@@ -111,6 +95,35 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
 
   await db.batch(statements);
   return result;
+}
+
+/**
+ * Characters belong to the member whose key first uploaded them. Throws 403 if another member
+ * owns `character`; otherwise returns the upsert statement to run in the caller's batch.
+ */
+export async function claimCharacter(
+  db: SqlDatabase,
+  member: Member,
+  character: Upload["character"],
+  now: Date,
+): Promise<SqlStatement> {
+  const claim = await db
+    .prepare("SELECT member_id FROM characters WHERE content_id = ?")
+    .bind(character.contentId)
+    .first<{ member_id: number }>();
+  if (claim && claim.member_id !== member.id) {
+    throw new IngestError(403, "This character is registered to another member.");
+  }
+
+  return db
+    .prepare(
+      `INSERT INTO characters (content_id, member_id, name, home_world_id, home_world, last_upload_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (content_id) DO UPDATE SET
+         name = excluded.name, home_world_id = excluded.home_world_id,
+         home_world = excluded.home_world, last_upload_at = excluded.last_upload_at`,
+    )
+    .bind(character.contentId, member.id, character.name, character.homeWorldId, character.homeWorld, now.toISOString());
 }
 
 /** Bulk insert via json_each: one statement (one bound JSON string) per chunk instead of one per item. */

@@ -40,7 +40,11 @@ Each member runs a lightweight Dalamud plugin that collects what their character
   - [x] Plugin uploads snapshots (only changed sections, gzip, settings window)
   - [x] Search UI
   - [x] Distribution via a custom Dalamud plugin repository ([install guide](docs/INSTALL.md), [releasing](docs/RELEASING.md))
-- **Later ideas:** shared Wondrous Tails duties, dungeon/trial/raid unlock comparison, quest prerequisites, homelab hosting with zero-trust access.
+- **Phase 2 — Wondrous Tails** *(in progress)*
+  - [x] Plugin reads and shares one journal per member (alts ignored)
+  - [x] Website: each member's book, this week / last week / turned in, duties in common for a chosen party, second chances
+  - [ ] Category-to-duty matching (e.g. "Dungeons (Lv. 81–89)" ↔ "The Tower of Zot")
+- **Later ideas:** dungeon/trial/raid unlock comparison, quest prerequisites, homelab hosting with zero-trust access.
 
 ## Building the plugin
 

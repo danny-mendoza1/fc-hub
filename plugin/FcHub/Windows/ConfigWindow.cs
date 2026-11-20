@@ -24,6 +24,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly HubClient client;
     private readonly Uploader uploader;
     private readonly SyncService sync;
+    private readonly WondrousTailsSync wondrousTails;
     private readonly CancellationTokenSource disposing = new();
 
     private string serverUrl = string.Empty;
@@ -43,7 +44,8 @@ public sealed class ConfigWindow : Window, IDisposable
         IPlayerState playerState,
         HubClient client,
         Uploader uploader,
-        SyncService sync)
+        SyncService sync,
+        WondrousTailsSync wondrousTails)
         : base("FC Hub settings##FcHubConfig", ImGuiWindowFlags.AlwaysAutoResize)
     {
         this.configuration = configuration;
@@ -52,6 +54,7 @@ public sealed class ConfigWindow : Window, IDisposable
         this.client = client;
         this.uploader = uploader;
         this.sync = sync;
+        this.wondrousTails = wondrousTails;
     }
 
     public override void OnOpen()
@@ -126,6 +129,18 @@ public sealed class ConfigWindow : Window, IDisposable
         if (ImGui.IsItemHovered())
         {
             ImGui.SetTooltip("Normally only changed sections are sent. Use this if the website looks out of date.");
+        }
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Wondrous Tails");
+        var sharing = configuration.WondrousTailsCharacterName.Length > 0 ? configuration.WondrousTailsCharacterName : "(the first character you log in with)";
+        ImGui.TextColored(Muted, $"Shared from: {sharing}. Alts' journals are ignored.");
+        if (playerState.IsLoaded && !wondrousTails.IsSharingCharacter)
+        {
+            if (ImGui.Button($"Share Wondrous Tails from {playerState.CharacterName} instead"))
+            {
+                wondrousTails.UseCurrentCharacter();
+            }
         }
     }
 

@@ -6,19 +6,21 @@ import { LoginView } from "./components/LoginView.tsx";
 import { OverviewView } from "./components/OverviewView.tsx";
 import { SearchView } from "./components/SearchView.tsx";
 import { TopBar, type View } from "./components/TopBar.tsx";
+import { WondrousTailsView } from "./components/WondrousTailsView.tsx";
 
 type Auth = { status: "checking" } | { status: "signedOut" } | { status: "signedIn"; member: Member };
 
-/** URL state: ?q= for search (shareable links), ?view=overview for the overview tab. */
+/** URL state: ?q= for search (shareable links), ?view=overview|wt for the other tabs. */
 function readUrl(): { view: View; query: string } {
   const params = new URL(location.href).searchParams;
-  return { view: params.get("view") === "overview" ? "overview" : "search", query: params.get("q") ?? "" };
+  const view = params.get("view");
+  return { view: view === "overview" || view === "wt" ? view : "search", query: params.get("q") ?? "" };
 }
 
 function writeUrl(view: View, query: string): void {
   const url = new URL(location.href);
   url.search = "";
-  if (view === "overview") url.searchParams.set("view", "overview");
+  if (view !== "search") url.searchParams.set("view", view);
   else if (query.trim()) url.searchParams.set("q", query.trim());
   history.replaceState(null, "", url);
 }
@@ -54,6 +56,7 @@ export function App() {
           <SearchView query={query} onQueryChange={(q) => setRoute((r) => ({ ...r, query: q }))} onUnauthorized={signedOut} />
         )}
         {member && view === "overview" && <OverviewView onUnauthorized={signedOut} />}
+        {member && view === "wt" && <WondrousTailsView onUnauthorized={signedOut} />}
       </main>
     </>
   );

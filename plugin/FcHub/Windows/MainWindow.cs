@@ -21,16 +21,25 @@ public sealed class MainWindow : Window
     private readonly OwnerNameTracker names;
     private readonly SyncService probe;
     private readonly Uploader uploader;
+    private readonly WondrousTailsSync wondrousTails;
     private readonly Configuration configuration;
     private readonly Action openSettings;
 
-    public MainWindow(AllaganToolsIpc allagan, OwnerNameTracker names, SyncService probe, Uploader uploader, Configuration configuration, Action openSettings)
+    public MainWindow(
+        AllaganToolsIpc allagan,
+        OwnerNameTracker names,
+        SyncService probe,
+        Uploader uploader,
+        WondrousTailsSync wondrousTails,
+        Configuration configuration,
+        Action openSettings)
         : base("FC Hub##FcHubMain")
     {
         this.allagan = allagan;
         this.names = names;
         this.probe = probe;
         this.uploader = uploader;
+        this.wondrousTails = wondrousTails;
         this.configuration = configuration;
         this.openSettings = openSettings;
         SizeConstraints = new WindowSizeConstraints
@@ -75,6 +84,70 @@ public sealed class MainWindow : Window
             $"Rebuilds {SyncService.Debounce.TotalSeconds:0}s after inventory changes and every {SyncService.PeriodicInterval.TotalSeconds:0}s; only changed sections are uploaded.");
 
         DrawLatest();
+        DrawWondrousTails();
+    }
+
+    private void DrawWondrousTails()
+    {
+        ImGui.Spacing();
+        if (!ImGui.CollapsingHeader("Wondrous Tails"))
+        {
+            return;
+        }
+
+        ImGui.TextColored(wondrousTails.StatusIsError ? Bad : Muted, $"Status: {wondrousTails.Status}");
+        if (ImGui.Button("Read journal now"))
+        {
+            wondrousTails.RequestRead();
+        }
+
+        if (wondrousTails.Latest is not { } book)
+        {
+            return;
+        }
+
+        if (!book.HasJournal)
+        {
+            ImGui.TextUnformatted($"No journal (turned in, or not picked up this week) · second chances: {book.SecondChancePoints}");
+            return;
+        }
+
+        var expires = book.ExpiresAt?.ToLocalTime().ToString("ddd MMM d, h:mm tt") ?? "?";
+        ImGui.TextUnformatted(
+            $"Journal expires {expires}{(book.IsExpired ? " (EXPIRED)" : string.Empty)} · stickers {book.StickersPlaced}/9 · second chances {book.SecondChancePoints}");
+
+        if (!ImGui.BeginTable("##wt", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
+        {
+            return;
+        }
+
+        ImGui.TableSetupColumn("#", ImGuiTableColumnFlags.WidthFixed, 24);
+        ImGui.TableSetupColumn("Objective");
+        ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 150);
+        ImGui.TableHeadersRow();
+        foreach (var slot in book.Slots)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted((slot.Index + 1).ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(slot.Name);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip($"Order {slot.OrderId} · type {slot.Type} · data {slot.DataId} · icon {slot.IconId}");
+            }
+
+            ImGui.TableNextColumn();
+            var (label, color) = slot.Status switch
+            {
+                SlotStatus.Claimed => ("Done (sticker placed)", Muted),
+                SlotStatus.Claimable => ("Done (place sticker)", Good),
+                _ => ("Open", Bad),
+            };
+            ImGui.TextColored(color, label);
+        }
+
+        ImGui.EndTable();
     }
 
     private void DrawStatus()

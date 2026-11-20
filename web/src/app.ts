@@ -4,6 +4,8 @@ import type { SqlDatabase } from "./db/types.ts";
 import { IngestError, ingestUpload } from "./ingest.ts";
 import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
 import { MAX_QUERY_LENGTH, overview, ownerItems, searchItems } from "./search.ts";
+import { validateWondrousTails } from "./wondrous-tails.ts";
+import { listWondrousTails, saveWondrousTails } from "./wondrous-tails-store.ts";
 
 export interface AppEnv {
   DB: SqlDatabase;
@@ -107,6 +109,20 @@ route("GET", "/api/v1/search", async (request, env) => {
 route("GET", "/api/v1/overview", async (request, env) => {
   await requireMember(request, env, true);
   return json({ characters: await overview(env.DB) });
+});
+
+/** The plugin's Wondrous Tails upload (one journal per member; bearer key only). */
+route("POST", "/api/v1/wondrous-tails", async (request, env) => {
+  const member = await requireMember(request, env);
+  const validation = validateWondrousTails(await readJson(request));
+  if (!validation.ok) throw new HttpError(422, "invalid_upload", "Upload failed validation", validation.errors);
+  return json(await saveWondrousTails(env.DB, member, validation.value));
+});
+
+/** Every member's journal with its status this week; "in common" is computed in the browser. */
+route("GET", "/api/v1/wondrous-tails", async (request, env) => {
+  await requireMember(request, env, true);
+  return json(await listWondrousTails(env.DB));
 });
 
 /** One owner's items by section, for the "Who's uploaded" accordions (loaded on expand). */
