@@ -10,6 +10,8 @@
 Requires Allagan Tools.</Description>
     <Tags>inventory;free company;crafting;retainers</Tags>
     <RepoUrl>https://github.com/danny-mendoza1/fc-hub</RepoUrl>
+    <!-- Dalamud's feedback button reports to the Dalamud team's service; FC Hub feedback goes to GitHub issues. -->
+    <AcceptsFeedback>false</AcceptsFeedback>
     <IconUrl>https://raw.githubusercontent.com/danny-mendoza1/fc-hub/main/plugin/images/icon.png</IconUrl>
   </PropertyGroup>
 </Project>
