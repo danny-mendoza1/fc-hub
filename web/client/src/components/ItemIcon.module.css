@@ -1,0 +1,7 @@
+.icon {
+  display: inline-block; flex: none; vertical-align: middle;
+  border-radius: 6px; background: var(--panel-2); object-fit: contain;
+}
+.small { width: 28px; height: 28px; }
+.large { width: 36px; height: 36px; }
+.placeholder { border: 1px dashed var(--border); background: none; }

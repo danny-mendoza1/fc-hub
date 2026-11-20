@@ -1,6 +1,7 @@
 import type { SearchHit } from "../../../src/api-types.ts";
 import { numberFormat } from "../format.ts";
 import { Age, HqBadge, Holder } from "./Bits.tsx";
+import { ItemIcon } from "./ItemIcon.tsx";
 import ui from "./ui.module.css";
 import styles from "./ItemCard.module.css";
 
@@ -9,6 +10,7 @@ export function ItemCard({ hit }: { hit: SearchHit }) {
   return (
     <article className={`${ui.card} ${styles.item}`}>
       <div className={styles.head}>
+        <ItemIcon iconId={hit.iconId} size="large" />
         <span className={styles.name}>{hit.name || `Item #${hit.itemId}`}</span>
         {hit.isHq && <HqBadge />}
         <span className={styles.itemId}>#{hit.itemId}</span>

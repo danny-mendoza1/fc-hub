@@ -48,3 +48,37 @@ export const SECTION_LABELS: Record<string, string> = {
   HousingExteriorStoreroom: "Exterior storeroom",
   HousingExteriorAppearance: "Exterior fixtures",
 };
+
+/**
+ * Roughly the order the game presents them in, so the accordions feel familiar: bags first,
+ * then gear and listings, with gil/crystals last (they're single lines, not something you browse).
+ */
+const SECTION_ORDER = [
+  "CharacterEquipped",
+  "CharacterBags",
+  "CharacterArmoryChest",
+  "CharacterSaddleBags",
+  "CharacterPremiumSaddleBags",
+  "RetainerBags",
+  "RetainerMarket",
+  "RetainerEquipped",
+  "FreeCompanyBags",
+  "Crystals",
+  "Currency",
+  "Armoire",
+  "GlamourChest",
+  "HousingInteriorItems",
+  "HousingInteriorStoreroom",
+  "HousingInteriorAppearance",
+  "HousingExteriorItems",
+  "HousingExteriorStoreroom",
+  "HousingExteriorAppearance",
+];
+
+export function bySectionOrder(a: { section: string }, b: { section: string }): number {
+  const rank = (s: string) => {
+    const i = SECTION_ORDER.indexOf(s);
+    return i === -1 ? SECTION_ORDER.length : i;
+  };
+  return rank(a.section) - rank(b.section) || a.section.localeCompare(b.section);
+}
