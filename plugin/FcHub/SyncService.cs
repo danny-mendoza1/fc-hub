@@ -6,36 +6,45 @@ using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using FcHub.Allagan;
 using FcHub.Snapshot;
+using FcHub.Upload;
 
 namespace FcHub;
 
 /// <summary>
-/// Phase-1 probe: builds snapshots from Allagan Tools on demand and automatically a few seconds
-/// after inventory changes settle, and measures how expensive that is. This logic becomes the
-/// upload pipeline once the web API exists.
+/// Decides when to rebuild the snapshot and hands it to the uploader:
+/// a few seconds after Allagan Tools reports changes, every minute as a safety net (moves within
+/// a container don't raise IPC events), and on demand. A rebuild costs ~2 ms on the framework thread;
+/// hashing, serialization and network IO happen on background threads.
 /// </summary>
-public sealed class ProbeService : IDisposable
+public sealed class SyncService : IDisposable
 {
     /// <summary>Wait this long after the last inventory change before rebuilding.</summary>
     public static readonly TimeSpan Debounce = TimeSpan.FromSeconds(5);
+
+    /// <summary>Rebuild at least this often to catch changes that raise no IPC event.</summary>
+    public static readonly TimeSpan PeriodicInterval = TimeSpan.FromSeconds(60);
 
     private readonly IFramework framework;
     private readonly IChatGui chat;
     private readonly IPluginLog log;
     private readonly AllaganToolsIpc allagan;
     private readonly SnapshotBuilder builder;
+    private readonly Uploader uploader;
     private readonly DirectoryInfo outputDirectory;
 
     private bool refreshRequested;
     private bool writeRequested;
+    private bool forceUpload;
     private DateTime? dirtySince;
+    private DateTime nextPeriodic = DateTime.UtcNow + TimeSpan.FromSeconds(10);
 
-    public ProbeService(
+    public SyncService(
         IFramework framework,
         IChatGui chat,
         IPluginLog log,
         AllaganToolsIpc allagan,
         SnapshotBuilder builder,
+        Uploader uploader,
         DirectoryInfo outputDirectory)
     {
         this.framework = framework;
@@ -43,6 +52,7 @@ public sealed class ProbeService : IDisposable
         this.log = log;
         this.allagan = allagan;
         this.builder = builder;
+        this.uploader = uploader;
         this.outputDirectory = outputDirectory;
 
         allagan.Changed += OnAllaganChanged;
@@ -57,27 +67,33 @@ public sealed class ProbeService : IDisposable
     public string? LastWrittenPath { get; private set; }
 
     /// <summary>Queue a rebuild on the next framework tick (safe to call from UI code).</summary>
-    public void RequestRefresh(bool writeFile = false)
+    public void RequestRefresh(bool writeFile = false, bool upload = false)
     {
         refreshRequested = true;
         writeRequested |= writeFile;
+        forceUpload |= upload;
     }
 
     private void OnAllaganChanged() => dirtySince = DateTime.UtcNow;
 
     private void OnUpdate(IFramework fw)
     {
-        var auto = dirtySince is { } since && DateTime.UtcNow - since >= Debounce;
-        if (!refreshRequested && !auto)
+        var now = DateTime.UtcNow;
+        var changed = dirtySince is { } since && now - since >= Debounce;
+        var periodic = now >= nextPeriodic;
+        if (!refreshRequested && !changed && !periodic)
         {
             return;
         }
 
         var write = writeRequested;
+        var force = forceUpload;
         refreshRequested = false;
         writeRequested = false;
+        forceUpload = false;
         dirtySince = null;
-        if (auto)
+        nextPeriodic = now + PeriodicInterval;
+        if (changed || periodic)
         {
             AutoRefreshCount++;
         }
@@ -105,6 +121,8 @@ public sealed class ProbeService : IDisposable
 
             return;
         }
+
+        uploader.Offer(snapshot, force);
 
         // Serialization and file IO happen off the framework thread so the game never waits on them.
         _ = Task.Run(async () =>

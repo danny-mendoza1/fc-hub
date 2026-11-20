@@ -1,4 +1,3 @@
-using System;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
@@ -6,6 +5,7 @@ using Dalamud.Plugin.Services;
 using FcHub.Allagan;
 using FcHub.Game;
 using FcHub.Snapshot;
+using FcHub.Upload;
 using FcHub.Windows;
 
 namespace FcHub;
@@ -21,8 +21,11 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem windowSystem = new("FcHub");
     private readonly AllaganToolsIpc allagan;
     private readonly OwnerNameTracker names;
-    private readonly ProbeService probe;
+    private readonly HubClient hubClient;
+    private readonly Uploader uploader;
+    private readonly SyncService sync;
     private readonly MainWindow mainWindow;
+    private readonly ConfigWindow configWindow;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
@@ -43,32 +46,44 @@ public sealed class Plugin : IDalamudPlugin
         allagan = new AllaganToolsIpc(pluginInterface, log);
         names = new OwnerNameTracker(framework, playerState, pluginInterface, log, configuration);
         var builder = new SnapshotBuilder(allagan, names, playerState, dataManager, version);
-        probe = new ProbeService(framework, chat, log, allagan, builder, pluginInterface.ConfigDirectory);
+        hubClient = new HubClient(version);
+        uploader = new Uploader(configuration, pluginInterface, framework, log, hubClient, version);
+        sync = new SyncService(framework, chat, log, allagan, builder, uploader, pluginInterface.ConfigDirectory);
 
-        mainWindow = new MainWindow(allagan, names, probe);
+        configWindow = new ConfigWindow(configuration, pluginInterface, playerState, hubClient, uploader, sync);
+        mainWindow = new MainWindow(allagan, names, sync, uploader, configuration, configWindow.Toggle);
         windowSystem.AddWindow(mainWindow);
+        windowSystem.AddWindow(configWindow);
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the FC Hub window. '/fchub dump' writes the current snapshot to a JSON file.",
+            HelpMessage = "Toggle the FC Hub window. '/fchub config' opens settings, '/fchub upload' uploads now, '/fchub dump' writes the snapshot JSON.",
         });
 
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
         pluginInterface.UiBuilder.OpenMainUi += mainWindow.Toggle;
+        pluginInterface.UiBuilder.OpenConfigUi += configWindow.Toggle;
     }
 
     private void OnCommand(string command, string args)
     {
         switch (args.Trim().ToLowerInvariant())
         {
-            case "dump":
-                probe.RequestRefresh(writeFile: true);
-                break;
             case "":
                 mainWindow.Toggle();
                 break;
+            case "config":
+            case "settings":
+                configWindow.Toggle();
+                break;
+            case "upload":
+                sync.RequestRefresh(upload: true);
+                break;
+            case "dump":
+                sync.RequestRefresh(writeFile: true);
+                break;
             default:
-                chat.Print("[FC Hub] Usage: /fchub (toggle window) · /fchub dump (write snapshot JSON)");
+                chat.Print("[FC Hub] Usage: /fchub · /fchub config · /fchub upload · /fchub dump");
                 break;
         }
     }
@@ -77,10 +92,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         pluginInterface.UiBuilder.Draw -= windowSystem.Draw;
         pluginInterface.UiBuilder.OpenMainUi -= mainWindow.Toggle;
+        pluginInterface.UiBuilder.OpenConfigUi -= configWindow.Toggle;
         commandManager.RemoveHandler(Command);
         windowSystem.RemoveAllWindows();
 
-        probe.Dispose();
+        sync.Dispose();
+        uploader.Dispose();
+        configWindow.Dispose();
+        hubClient.Dispose();
         names.Dispose();
         allagan.Dispose();
     }
