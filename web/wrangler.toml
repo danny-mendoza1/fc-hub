@@ -11,7 +11,7 @@ workers_dev = true
 binding = "DB"
 database_name = "fc-hub"
 # Replace with the id printed by `npx wrangler d1 create fc-hub`.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "1dab7251-7263-4eea-b729-16afe4fca447"
 migrations_dir = "migrations"
 
 [observability]
