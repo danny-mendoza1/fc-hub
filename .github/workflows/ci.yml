@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin:
+    name: Plugin build
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud reference assemblies
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
+          Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      - name: Build (Release)
+        run: dotnet build plugin/FcHub.slnx --configuration Release
+
+      - name: List build output
+        shell: pwsh
+        run: Get-ChildItem -Recurse -File plugin/FcHub/bin | Select-Object -ExpandProperty FullName
+
+      - name: Upload plugin package
+        uses: actions/upload-artifact@v5
+        with:
+          name: FcHub
+          path: plugin/FcHub/bin/x64/Release/FcHub/*
+          if-no-files-found: error
+          retention-days: 7
+
+  web:
+    name: Web tests + typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Test
+        run: npm test
+
+      # Only the type-checking tools are installed (not wrangler), outside the project.
+      - name: Typecheck
+        run: |
+          npm install --prefix "$RUNNER_TEMP/tools" --no-save --no-audit --no-fund typescript@6 @types/node@22
+          ln -s "$RUNNER_TEMP/tools/node_modules" node_modules
+          node node_modules/typescript/bin/tsc --noEmit

@@ -1,0 +1,23 @@
+{
+  "name": "fc-hub-web",
+  "private": true,
+  "type": "module",
+  "description": "FC Hub web API: stores inventory snapshots from the FC Hub plugin and serves item search.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "start": "node src/node.ts",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply fc-hub --local",
+    "db:migrate:remote": "wrangler d1 migrations apply fc-hub --remote"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^6.0.0",
+    "wrangler": "^4.0.0"
+  }
+}
