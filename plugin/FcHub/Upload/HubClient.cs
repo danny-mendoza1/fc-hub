@@ -52,8 +52,12 @@ public sealed class HubClient : IDisposable
         return SendAsync<MeResponse>(request, apiKey, cancellationToken);
     }
 
-    /// <summary>Uploads a gzip-compressed JSON payload.</summary>
-    public Task<HubResponse<UploadResult>> UploadAsync(Uri server, string apiKey, UploadPayload payload, CancellationToken cancellationToken)
+    /// <summary>Uploads a gzip-compressed inventory snapshot.</summary>
+    public Task<HubResponse<UploadResult>> UploadAsync(Uri server, string apiKey, UploadPayload payload, CancellationToken cancellationToken) =>
+        PostJsonAsync<UploadPayload, UploadResult>(server, "api/v1/snapshots", apiKey, payload, cancellationToken);
+
+    /// <summary>POSTs a gzip-compressed JSON body and parses the JSON response.</summary>
+    public Task<HubResponse<TResult>> PostJsonAsync<TPayload, TResult>(Uri server, string path, string apiKey, TPayload payload, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(payload, UploadJson.Options);
         using var compressed = new MemoryStream();
@@ -66,8 +70,8 @@ public sealed class HubClient : IDisposable
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         content.Headers.ContentEncoding.Add("gzip");
 
-        var request = new HttpRequestMessage(HttpMethod.Post, new Uri(server, "api/v1/snapshots")) { Content = content };
-        return SendAsync<UploadResult>(request, apiKey, cancellationToken, compressedBytes: content.Headers.ContentLength);
+        var request = new HttpRequestMessage(HttpMethod.Post, new Uri(server, path)) { Content = content };
+        return SendAsync<TResult>(request, apiKey, cancellationToken, compressedBytes: content.Headers.ContentLength);
     }
 
     private async Task<HubResponse<T>> SendAsync<T>(HttpRequestMessage request, string apiKey, CancellationToken cancellationToken, long? compressedBytes = null)

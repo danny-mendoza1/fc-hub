@@ -33,6 +33,14 @@ public sealed class Configuration : IPluginConfiguration
     /// Only sections whose hash changed are uploaded.
     /// </summary>
     public Dictionary<string, string> UploadedSections { get; set; } = new();
+
+    /// <summary>The one character whose Wondrous Tails journal is shared (alts are ignored). 0 = first character seen.</summary>
+    public ulong WondrousTailsContentId { get; set; }
+
+    public string WondrousTailsCharacterName { get; set; } = string.Empty;
+
+    /// <summary>Hash of the journal the server last accepted.</summary>
+    public string WondrousTailsUploadedHash { get; set; } = string.Empty;
 }
 
 [Serializable]

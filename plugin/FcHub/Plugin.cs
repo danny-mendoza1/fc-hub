@@ -24,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HubClient hubClient;
     private readonly Uploader uploader;
     private readonly SyncService sync;
+    private readonly WondrousTailsSync wondrousTails;
     private readonly MainWindow mainWindow;
     private readonly ConfigWindow configWindow;
 
@@ -32,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
         ICommandManager commandManager,
         IChatGui chat,
         IFramework framework,
+        IClientState clientState,
         IPlayerState playerState,
         IDataManager dataManager,
         IPluginLog log)
@@ -49,9 +51,11 @@ public sealed class Plugin : IDalamudPlugin
         hubClient = new HubClient(version);
         uploader = new Uploader(configuration, pluginInterface, framework, log, hubClient, version);
         sync = new SyncService(framework, chat, log, allagan, builder, uploader, pluginInterface.ConfigDirectory);
+        wondrousTails = new WondrousTailsSync(
+            framework, clientState, playerState, pluginInterface, log, configuration, hubClient, new WondrousTailsReader(dataManager), version);
 
-        configWindow = new ConfigWindow(configuration, pluginInterface, playerState, hubClient, uploader, sync);
-        mainWindow = new MainWindow(allagan, names, sync, uploader, configuration, configWindow.Toggle);
+        configWindow = new ConfigWindow(configuration, pluginInterface, playerState, hubClient, uploader, sync, wondrousTails);
+        mainWindow = new MainWindow(allagan, names, sync, uploader, wondrousTails, configuration, configWindow.Toggle);
         windowSystem.AddWindow(mainWindow);
         windowSystem.AddWindow(configWindow);
 
@@ -78,6 +82,7 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "upload":
                 sync.RequestRefresh(upload: true);
+                wondrousTails.RequestRead();
                 break;
             case "dump":
                 sync.RequestRefresh(writeFile: true);
@@ -97,6 +102,7 @@ public sealed class Plugin : IDalamudPlugin
         windowSystem.RemoveAllWindows();
 
         sync.Dispose();
+        wondrousTails.Dispose();
         uploader.Dispose();
         configWindow.Dispose();
         hubClient.Dispose();
