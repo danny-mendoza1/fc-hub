@@ -1,0 +1,61 @@
+# FC Hub
+
+A shared hub for a small FFXIV Free Company. **Phase 1** answers one question:
+
+> *"Does anyone in the FC have this item, and where is it?"*
+
+Each member runs a lightweight Dalamud plugin that collects what their characters, retainers, and FC chest hold. The plugin uploads a snapshot to a small web app, and anyone in the group can search there to see **who** has an item, **how many**, and **exactly where** (e.g. *Retainer "Bob", page 3, slot 12*).
+
+## How it fits together
+
+```
+ FFXIV client                          Web (Cloudflare Workers + D1 → Docker later)
+┌──────────────────────────────┐      ┌──────────────────────────────────────────┐
+│ Allagan Tools (existing)     │      │  API (Hono)        Storage (SQLite/D1)   │
+│   scans bags/retainers/FC    │      │   POST /snapshots ───► latest snapshot   │
+│        │ IPC                 │ HTTPS│   GET  /search    ◄─── per character     │
+│        ▼                     │ ───► │                                          │
+│ FC Hub plugin (this repo)    │      │  UI: item search → who / how many / where│
+│   builds snapshot, uploads   │      └──────────────────────────────────────────┘
+└──────────────────────────────┘
+```
+
+- **Collection:** Allagan Tools already reads every inventory container and persists it between sessions. FC Hub reads that data through Allagan Tools' public IPC instead of re-implementing the scanner. See [ADR 0001](docs/adr/0001-architecture.md).
+- **Storage + presentation:** a web app on Cloudflare (Workers + D1) for the fastest stand-up. It's built on portable pieces (Hono + Drizzle + SQLite) so it can move to a Docker container on a homelab behind Cloudflare Tunnel/Access later.
+
+## Repository layout
+
+| Path | What |
+|---|---|
+| `plugin/` | Dalamud plugin (C#, .NET 10, Dalamud API 15) |
+| `web/` | Web API + UI *(coming next)* |
+| `docs/adr/` | Architecture decision records |
+
+## Roadmap
+
+- **Phase 1 — Shared inventory** *(in progress)*
+  - [x] Research how inventory data is gathered
+  - [ ] IPC probe plugin: prove we can read Allagan Tools data in-game
+  - [ ] Web API + storage
+  - [ ] Plugin uploads snapshots
+  - [ ] Search UI
+  - [ ] Distribution via a custom Dalamud plugin repository
+- **Later ideas:** shared Wondrous Tails duties, dungeon/trial/raid unlock comparison, quest prerequisites, homelab hosting with zero-trust access.
+
+## Building the plugin
+
+Prerequisites (Windows): the [.NET 10 SDK](https://dotnet.microsoft.com/download), and XIVLauncher with Dalamud launched at least once, since the build references the Dalamud assemblies in `%AppData%\XIVLauncher\addon\Hooks\dev\`.
+
+```powershell
+cd plugin
+dotnet build
+```
+
+The output is `plugin/FcHub/bin/x64/Debug/FcHub.dll`. In game: `/xlsettings` → **Experimental** → add that DLL's full path under **Dev Plugin Locations** → Save. Then `/xlplugins` → **Dev Tools → Installed Dev Plugins** → enable **FC Hub**.
+
+Requires the **Allagan Tools** plugin, installed from the official Dalamud repository.
+
+## Conventions
+
+- **Commits:** [Conventional Commits](https://www.conventionalcommits.org/): `feat(plugin): …`, `fix(web): …`, `docs: …`, `chore: …`. Scopes: `plugin`, `web`, `docs`, `repo`.
+- **Branches:** `<type>/<short-description>`, e.g. `feat/plugin-ipc-probe`, `fix/web-search-paging`, `docs/adr-hosting`. Branch from `main` and merge back when the work is verified.
