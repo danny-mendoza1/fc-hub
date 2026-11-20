@@ -30,10 +30,14 @@ jobs:
           Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
       - name: Build (Release)
-        run: dotnet build plugin/FcHub/FcHub.csproj --configuration Release
+        run: dotnet build plugin/FcHub.slnx --configuration Release
+
+      - name: List build output
+        shell: pwsh
+        run: Get-ChildItem -Recurse -File plugin/FcHub/bin | Select-Object -ExpandProperty FullName
 
       - name: Upload plugin package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: FcHub
           path: plugin/FcHub/bin/x64/Release/FcHub/*
