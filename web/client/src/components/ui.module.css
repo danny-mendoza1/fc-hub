@@ -1,0 +1,25 @@
+/* Small shared building blocks (cards, badges, text helpers). */
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+}
+.muted { color: var(--muted); }
+.error { color: var(--red); min-height: 1.2em; margin: 0; }
+
+.linkButton { background: none; color: var(--blue); padding: 0; font-weight: 400; }
+
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap;
+}
+.hq { color: var(--gold); }
+.character { color: var(--blue); }
+.retainer { color: var(--green); }
+.freeCompany { color: var(--gold); }
+.housing { color: var(--purple); }
+.unknown { color: var(--muted); }
+
+.holder { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.age { white-space: nowrap; color: var(--muted); font-size: 13px; }
+.stale { color: var(--amber); }

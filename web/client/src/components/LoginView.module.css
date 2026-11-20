@@ -1,0 +1,4 @@
+.login { max-width: 420px; margin: 48px auto; }
+.login h2 { margin-top: 0; }
+.form { display: grid; gap: 10px; }
+.label { font-size: 13px; color: var(--muted); }
