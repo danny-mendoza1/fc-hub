@@ -5,7 +5,7 @@
 import type { Member } from "./auth.ts";
 import type { OverviewCharacter, SearchHit } from "./search.ts";
 
-export type { Holding, OverviewCharacter, OverviewOwner, SearchHit } from "./search.ts";
+export type { Holding, OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection, SearchHit } from "./search.ts";
 export type { Member } from "./auth.ts";
 export { MAX_QUERY_LENGTH } from "./search.ts";
 
@@ -37,6 +37,8 @@ export interface SearchResponse {
 export interface OverviewResponse {
   characters: OverviewCharacter[];
 }
+
+/** GET /api/v1/owners/:ownerId/items is `OwnerItems`. GET /api/v1/icons/:iconId is image/png. */
 
 /** Every error response. */
 export interface ErrorResponse {

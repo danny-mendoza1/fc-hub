@@ -2,6 +2,7 @@ import type {
   ErrorResponse,
   MeResponse,
   OverviewResponse,
+  OwnerItems,
   SearchResponse,
   SessionResponse,
 } from "../../src/api-types.ts";
@@ -37,6 +38,8 @@ export const api = {
     request<SearchResponse>(`/api/v1/search?q=${encodeURIComponent(q)}`, { signal }),
 
   overview: () => request<OverviewResponse>("/api/v1/overview"),
+
+  ownerItems: (ownerId: string) => request<OwnerItems>(`/api/v1/owners/${encodeURIComponent(ownerId)}/items`),
 };
 
 export function errorMessage(error: unknown): string {

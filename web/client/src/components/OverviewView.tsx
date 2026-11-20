@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { OverviewCharacter } from "../../../src/api-types.ts";
 import { api, errorMessage, Unauthorized } from "../api.ts";
-import { numberFormat, SECTION_LABELS } from "../format.ts";
+import { bySectionOrder, numberFormat, SECTION_LABELS } from "../format.ts";
+import { Accordion } from "./Accordion.tsx";
 import { Age, Holder } from "./Bits.tsx";
+import { OwnerItemsPanel } from "./OwnerItemsPanel.tsx";
 import ui from "./ui.module.css";
 import styles from "./OverviewView.module.css";
 
@@ -29,19 +31,21 @@ export function OverviewView({ onUnauthorized }: { onUnauthorized: () => void })
   return (
     <section>
       <p className={ui.muted}>
-        Each section shows when it was last captured in game. Retainers and the FC chest refresh when someone opens them.
+        Open a row to browse its items. Each section shows when it was last captured in game; retainers and the FC chest refresh
+        when someone opens them.
       </p>
       {state.status === "loading" && <p className={ui.muted}>Loading…</p>}
       {state.status === "error" && <p className={ui.error}>{state.message}</p>}
       {state.status === "done" && state.characters.length === 0 && (
         <p className={ui.muted}>Nobody has uploaded yet. Turn on uploads in the plugin's settings (/fchub config).</p>
       )}
-      {state.status === "done" && state.characters.map((c) => <CharacterCard key={c.contentId} character={c} />)}
+      {state.status === "done" &&
+        state.characters.map((c) => <CharacterCard key={c.contentId} character={c} onUnauthorized={onUnauthorized} />)}
     </section>
   );
 }
 
-function CharacterCard({ character: c }: { character: OverviewCharacter }) {
+function CharacterCard({ character: c, onUnauthorized }: { character: OverviewCharacter; onUnauthorized: () => void }) {
   return (
     <article className={`${ui.card} ${styles.character}`}>
       <h3>
@@ -52,16 +56,23 @@ function CharacterCard({ character: c }: { character: OverviewCharacter }) {
         {c.member} · last upload <Age iso={c.lastUploadAt} />
       </p>
       {c.owners.map((o) => (
-        <div key={o.ownerId} className={styles.owner}>
-          <Holder kind={o.kind} name={o.name} />
-          <div className={styles.sections}>
-            {o.sections.map((s) => (
-              <span key={s.section}>
-                {SECTION_LABELS[s.section] ?? s.section}: {numberFormat.format(s.itemCount)} · <Age iso={s.capturedAt} />
-              </span>
-            ))}
-          </div>
-        </div>
+        <Accordion
+          key={o.ownerId}
+          summary={
+            <div className={styles.owner}>
+              <Holder kind={o.kind} name={o.name} />
+              <div className={styles.sections}>
+                {[...o.sections].sort(bySectionOrder).map((s) => (
+                  <span key={s.section}>
+                    {SECTION_LABELS[s.section] ?? s.section}: {numberFormat.format(s.itemCount)} · <Age iso={s.capturedAt} />
+                  </span>
+                ))}
+              </div>
+            </div>
+          }
+        >
+          {() => <OwnerItemsPanel ownerId={o.ownerId} onUnauthorized={onUnauthorized} />}
+        </Accordion>
       ))}
     </article>
   );
