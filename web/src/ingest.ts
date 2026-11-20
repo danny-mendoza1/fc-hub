@@ -8,6 +8,13 @@ const PRIVATE_KINDS = new Set(["character", "retainer"]);
 /** Max items per INSERT ... json_each(?) statement, keeping each bound JSON well under D1's 2 MB value limit. */
 const ITEMS_PER_INSERT = 2_000;
 
+/**
+ * The diff path binds a whole section as one JSON string, and D1 caps a bound value at 2 MB.
+ * JSON.stringify length counts UTF-16 units; at most 3 UTF-8 bytes each, 600k units stays under
+ * 1.8 MB. Real sections are a few hundred items (~50 KB); anything bigger falls back to replace-all.
+ */
+const MAX_DIFF_JSON_CHARS = 600_000;
+
 /** Client clocks drift; never accept a capture time in the future. */
 const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -78,7 +85,7 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
       }
 
       statements.push(
-        db.prepare("DELETE FROM items WHERE owner_id = ? AND section = ?").bind(owner.ownerId, section.section),
+        // owner_sections must exist before items reference it (FK), so upsert it first.
         db
           .prepare(
             `INSERT INTO owner_sections (owner_id, section, captured_at, reported_by, item_count) VALUES (?, ?, ?, ?, ?)
@@ -86,7 +93,7 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
                captured_at = excluded.captured_at, reported_by = excluded.reported_by, item_count = excluded.item_count`,
           )
           .bind(owner.ownerId, section.section, capturedAt, character.contentId, section.items.length),
-        ...insertItems(db, owner.ownerId, section.section, section.items),
+        ...syncSectionItems(db, owner.ownerId, section.section, section.items),
       );
       result.sectionsWritten++;
       result.itemsWritten += section.items.length;
@@ -126,24 +133,112 @@ export async function claimCharacter(
     .bind(character.contentId, member.id, character.name, character.homeWorldId, character.homeWorld, now.toISOString());
 }
 
-/** Bulk insert via json_each: one statement (one bound JSON string) per chunk instead of one per item. */
-function insertItems(db: SqlDatabase, ownerId: string, section: string, items: UploadItem[]): SqlStatement[] {
-  const statements: SqlStatement[] = [];
+/**
+ * Item columns in the order the diff path packs them: each item travels as a JSON array
+ * `[itemId, name, iconId, quantity, isHq, isCollectable, container, sortedContainer, sortedSlot, location]`.
+ */
+const ITEM_COLUMNS = [
+  "item_id",
+  "name",
+  "icon_id",
+  "quantity",
+  "is_hq",
+  "is_collectable",
+  "container",
+  "sorted_container",
+  "sorted_slot",
+  "location",
+] as const;
+
+const COLUMN_LIST = ITEM_COLUMNS.join(", ");
+const PARTITION = `PARTITION BY ${COLUMN_LIST}`;
+const SAME_ROW = ITEM_COLUMNS.map((c) => `i.${c} = c.${c}`).join(" AND ") + " AND i.n = c.n";
+
+/**
+ * `incoming_n`: the uploaded items. `current_n`: what the table holds for this section. Both number
+ * identical rows 1..k (`n`), so matching on every column plus `n` is a multiset comparison:
+ * two identical stacks stay two rows, and dropping one of them deletes exactly one row.
+ */
+const DIFF_CTES = `
+  WITH incoming AS (
+    SELECT ${ITEM_COLUMNS.map((c, index) => `json_extract(value, '$[${index}]') AS ${c}`).join(", ")}
+    FROM json_each(?3)
+  ),
+  incoming_n AS (
+    SELECT *, row_number() OVER (${PARTITION}) AS n FROM incoming
+  ),
+  current_n AS (
+    SELECT rowid AS rid, ${COLUMN_LIST}, row_number() OVER (${PARTITION} ORDER BY rowid) AS n
+    FROM items WHERE owner_id = ?1 AND section = ?2
+  )`;
+
+/** Deletes stored rows the upload no longer has. */
+export const DELETE_REMOVED_SQL = `${DIFF_CTES}
+  DELETE FROM items WHERE rowid IN (
+    SELECT c.rid FROM current_n c
+    WHERE NOT EXISTS (SELECT 1 FROM incoming_n i WHERE ${SAME_ROW})
+  )`;
+
+/**
+ * Inserts uploaded rows the table doesn't have yet. Runs after DELETE_REMOVED_SQL in the same
+ * transaction: what survives the delete is, per identical group, ranks 1..min(stored, uploaded),
+ * so the ranks above that are exactly the rows to add.
+ */
+export const INSERT_ADDED_SQL = `${DIFF_CTES}
+  INSERT INTO items (owner_id, section, ${COLUMN_LIST})
+  SELECT ?1, ?2, ${ITEM_COLUMNS.map((c) => `i.${c}`).join(", ")}
+  FROM incoming_n i
+  WHERE NOT EXISTS (SELECT 1 FROM current_n c WHERE ${SAME_ROW})`;
+
+/**
+ * Makes the stored items of one section equal to `items`, writing only the rows that differ.
+ *
+ * D1 bills every row written, and each items row also updates two indexes, so replacing a whole
+ * 140-slot bag when one stack changes cost ~840 rows written. The diff costs a few rows per changed
+ * stack. Both statements run inside the caller's batch (one transaction), so concurrent uploads of a
+ * shared section (FC chest, houses) can't interleave mid-diff.
+ */
+export function syncSectionItems(db: SqlDatabase, ownerId: string, section: string, items: UploadItem[]): SqlStatement[] {
+  const packed = JSON.stringify(items.map(packItem));
+  if (packed.length > MAX_DIFF_JSON_CHARS) {
+    return replaceSectionItems(db, ownerId, section, items);
+  }
+  return [
+    db.prepare(DELETE_REMOVED_SQL).bind(ownerId, section, packed),
+    db.prepare(INSERT_ADDED_SQL).bind(ownerId, section, packed),
+  ];
+}
+
+function packItem(item: UploadItem): SqlValueTuple {
+  return [
+    item.itemId,
+    item.name,
+    item.iconId,
+    item.quantity,
+    item.isHq ? 1 : 0,
+    item.isCollectable ? 1 : 0,
+    item.container,
+    item.sortedContainer,
+    item.sortedSlot,
+    item.location,
+  ];
+}
+
+type SqlValueTuple = [number, string, number, number, 0 | 1, 0 | 1, number, number, number, string];
+
+/** Fallback for oversized sections: delete everything, then bulk insert in chunks. */
+function replaceSectionItems(db: SqlDatabase, ownerId: string, section: string, items: UploadItem[]): SqlStatement[] {
+  const statements: SqlStatement[] = [db.prepare("DELETE FROM items WHERE owner_id = ? AND section = ?").bind(ownerId, section)];
   for (let start = 0; start < items.length; start += ITEMS_PER_INSERT) {
-    const chunk = items.slice(start, start + ITEMS_PER_INSERT);
+    const chunk = JSON.stringify(items.slice(start, start + ITEMS_PER_INSERT).map(packItem));
     statements.push(
       db
         .prepare(
-          `INSERT INTO items (owner_id, section, item_id, name, icon_id, quantity, is_hq, is_collectable,
-                              container, sorted_container, sorted_slot, location)
-           SELECT ?1, ?2,
-                  json_extract(value, '$.itemId'), json_extract(value, '$.name'), json_extract(value, '$.iconId'),
-                  json_extract(value, '$.quantity'), json_extract(value, '$.isHq'), json_extract(value, '$.isCollectable'),
-                  json_extract(value, '$.container'), json_extract(value, '$.sortedContainer'),
-                  json_extract(value, '$.sortedSlot'), json_extract(value, '$.location')
+          `INSERT INTO items (owner_id, section, ${COLUMN_LIST})
+           SELECT ?1, ?2, ${ITEM_COLUMNS.map((_, index) => `json_extract(value, '$[${index}]')`).join(", ")}
            FROM json_each(?3)`,
         )
-        .bind(ownerId, section, JSON.stringify(chunk)),
+        .bind(ownerId, section, chunk),
     );
   }
   return statements;
