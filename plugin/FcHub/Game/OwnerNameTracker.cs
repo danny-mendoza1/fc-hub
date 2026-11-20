@@ -46,6 +46,9 @@ public sealed unsafe class OwnerNameTracker : IDisposable
     public string? NameOf(ulong ownerId) =>
         configuration.KnownOwners.TryGetValue(ownerId, out var known) && known.Name.Length > 0 ? known.Name : null;
 
+    public OwnerKind? KindOf(ulong ownerId) =>
+        configuration.KnownOwners.TryGetValue(ownerId, out var known) ? known.Kind : null;
+
     private void OnUpdate(IFramework fw)
     {
         var now = DateTime.UtcNow;

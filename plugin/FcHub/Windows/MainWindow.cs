@@ -111,6 +111,11 @@ public sealed class MainWindow : Window
             ImGui.TextColored(Muted, $"Last file: {path}");
         }
 
+        if (diag.EmptyOwners.Count > 0)
+        {
+            ImGui.TextColored(Muted, $"Not shown (no items loaded yet): {string.Join(" | ", diag.EmptyOwners)}");
+        }
+
         ImGui.Spacing();
         if (!ImGui.BeginTable("##owners", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
         {
