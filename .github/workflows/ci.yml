@@ -36,6 +36,14 @@ jobs:
         shell: pwsh
         run: Get-ChildItem -Recurse -File plugin/FcHub/bin | Select-Object -ExpandProperty FullName
 
+      - name: Dry-run pluginmaster.json (same script the release uses)
+        shell: pwsh
+        run: |
+          $manifest = "plugin/FcHub/bin/x64/Release/FcHub/FcHub.json"
+          $version = (Get-Content $manifest -Raw | ConvertFrom-Json).AssemblyVersion
+          python scripts/make_pluginmaster.py $manifest "v$version" "${{ github.repository }}" pluginmaster.json
+          Get-Content pluginmaster.json
+
       - name: Upload plugin package
         uses: actions/upload-artifact@v5
         with:

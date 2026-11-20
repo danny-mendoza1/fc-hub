@@ -39,7 +39,7 @@ Each member runs a lightweight Dalamud plugin that collects what their character
   - [x] Web API + storage
   - [x] Plugin uploads snapshots (only changed sections, gzip, settings window)
   - [x] Search UI
-  - [ ] Distribution via a custom Dalamud plugin repository
+  - [x] Distribution via a custom Dalamud plugin repository ([install guide](docs/INSTALL.md), [releasing](docs/RELEASING.md))
 - **Later ideas:** shared Wondrous Tails duties, dungeon/trial/raid unlock comparison, quest prerequisites, homelab hosting with zero-trust access.
 
 ## Building the plugin
@@ -54,6 +54,8 @@ dotnet build
 The output is `plugin/FcHub/bin/x64/Debug/FcHub.dll`. In game: `/xlsettings` → **Experimental** → add that DLL's full path under **Dev Plugin Locations** → Save. Then `/xlplugins` → **Dev Tools → Installed Dev Plugins** → enable **FC Hub**.
 
 Requires the **Allagan Tools** plugin, installed from the official Dalamud repository.
+
+**Just want to use it?** See [docs/INSTALL.md](docs/INSTALL.md); no building required.
 
 ## Conventions
 

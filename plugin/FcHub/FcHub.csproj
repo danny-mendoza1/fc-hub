@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.2.0.0</Version>
+    <Version>0.2.1.0</Version>
     <!-- Manifest fields read by DalamudPackager -->
     <Author>Danny Mendoza</Author>
     <Name>FC Hub</Name>
@@ -10,5 +10,8 @@
 Requires Allagan Tools.</Description>
     <Tags>inventory;free company;crafting;retainers</Tags>
     <RepoUrl>https://github.com/danny-mendoza1/fc-hub</RepoUrl>
+    <!-- Dalamud's feedback button reports to the Dalamud team's service; FC Hub feedback goes to GitHub issues. -->
+    <AcceptsFeedback>false</AcceptsFeedback>
+    <IconUrl>https://raw.githubusercontent.com/danny-mendoza1/fc-hub/main/plugin/images/icon.png</IconUrl>
   </PropertyGroup>
 </Project>

@@ -1,0 +1,54 @@
+name: Release plugin
+
+# Push a tag matching the plugin version to publish, e.g.:
+#   git tag v0.2.1.0 && git push origin v0.2.1.0
+# Players subscribe once to:
+#   https://github.com/<owner>/<repo>/releases/latest/download/pluginmaster.json
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub Release
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud reference assemblies
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
+          Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      - name: Build (Release)
+        run: dotnet build plugin/FcHub.slnx --configuration Release
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build pluginmaster.json
+        run: python scripts/make_pluginmaster.py plugin/FcHub/bin/x64/Release/FcHub/FcHub.json "${{ github.ref_name }}" "${{ github.repository }}" pluginmaster.json
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            plugin/FcHub/bin/x64/Release/FcHub/latest.zip `
+            pluginmaster.json `
+            --title "FC Hub ${{ github.ref_name }}" `
+            --generate-notes `
+            --latest
