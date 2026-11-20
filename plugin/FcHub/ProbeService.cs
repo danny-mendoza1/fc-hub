@@ -119,7 +119,8 @@ public sealed class ProbeService : IDisposable
                 string? path = null;
                 if (write)
                 {
-                    (path, _) = await SnapshotJson.WriteAsync(snapshot, outputDirectory).ConfigureAwait(false);
+                    var written = await SnapshotJson.WriteAsync(snapshot, outputDirectory).ConfigureAwait(false);
+                    path = written.Path;
                 }
 
                 await framework.RunOnFrameworkThread(() =>
