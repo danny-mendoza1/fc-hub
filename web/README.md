@@ -52,7 +52,7 @@ curl -X POST https://fc-hub.<you>.workers.dev/api/v1/admin/members \
 
 ## API
 
-All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`, `owners/:id/items`, `icons/:id`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
+All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`, `owners/:id/items`, `icons/:id`, `wondrous-tails`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -66,6 +66,8 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `GET` | `/api/v1/overview` | Every character's owners and per-section freshness |
 | `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Who's uploaded" accordions) |
 | `GET` | `/api/v1/icons/:iconId` | Item icon PNG, proxied from XIVAPI (see below) |
+| `POST` | `/api/v1/wondrous-tails` | Plugin upload of the member's Wondrous Tails journal (bearer key only) |
+| `GET` | `/api/v1/wondrous-tails` | Every member's journal with this week's status; "in common" is computed in the browser |
 | `POST` | `/api/v1/admin/members` | Create a member, returns their key once (admin token) |
 | `POST` | `/api/v1/admin/members/:id/revoke` | Revoke a member's key (admin token) |
 
@@ -100,6 +102,14 @@ Merge rules (`src/ingest.ts`):
 ## Web UI
 
 Sign in with your personal key (the same one the plugin uses). The server stores it in a `__Host-` cookie that is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
+
+### Wondrous Tails
+
+One journal per member. The plugin shares the first character it sees, changeable in `/fchub config`. `src/wondrous-tails.ts` holds the rules and is shared with the UI:
+
+- Weekly reset is Tuesdays 08:00 UTC. A journal lasts two weeks from the reset after it was issued, so its expiry tells **this week's** book (expires the reset after next) from **last week's** (expires at the coming reset).
+- A still-valid journal that disappears between uploads is recorded as **turned in**. Statuses age with time, so a book uploaded last week shows as last week's without a new upload, and data captured before this week's reset is flagged.
+- **Duties in common**: exact objective matches across the members you pick, listing who still needs each duty and who's done it (with their second chances).
 
 ## Security notes
 

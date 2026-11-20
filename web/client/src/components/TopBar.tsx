@@ -2,11 +2,12 @@ import type { Member } from "../../../src/api-types.ts";
 import ui from "./ui.module.css";
 import styles from "./TopBar.module.css";
 
-export type View = "search" | "overview";
+export type View = "search" | "overview" | "wt";
 
 const TABS: { view: View; label: string }[] = [
   { view: "search", label: "Search" },
   { view: "overview", label: "Who's uploaded" },
+  { view: "wt", label: "Wondrous Tails" },
 ];
 
 interface Props {

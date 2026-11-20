@@ -1,0 +1,71 @@
+.heading { font-size: 16px; margin: 0 0 10px; }
+
+/* Party picker */
+.party { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 16px; }
+.partyLabel { color: var(--muted); font-size: 13px; margin-right: 4px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--panel); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 14px; font-weight: 500;
+}
+.chip[aria-pressed="true"] { color: var(--text); border-color: var(--gold); background: var(--panel-2); }
+.chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+/* Status tones (badge text colour / dot colour) */
+.good { color: var(--green); }
+.warn { color: var(--amber); }
+.bad { color: var(--red); }
+.muted { color: var(--muted); }
+
+/* Duties in common */
+.common { margin-bottom: 20px; }
+.commonList { list-style: none; margin: 0; padding: 0; }
+.commonRow {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 4px; border-top: 1px solid var(--border);
+}
+.commonBody { flex: 1; min-width: 0; }
+.dutyName { font-weight: 600; }
+.who { font-size: 13px; margin-top: 2px; }
+.needs { color: var(--text); }
+.count {
+  flex: none; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--gold); color: #1b1b1b; font-weight: 700;
+}
+
+/* Journals */
+.books { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.legend { font-size: 13px; margin: -4px 0 12px; display: flex; align-items: center; gap: 6px; }
+.legendSwatch { width: 14px; height: 14px; border-radius: 4px; border: 2px solid var(--gold); display: inline-block; }
+.book { display: flex; flex-direction: column; gap: 10px; }
+.outOfParty { opacity: 0.55; }
+.bookHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.member { margin: 0; font-size: 16px; }
+.meta { font-size: 13px; display: grid; gap: 2px; }
+.staleNote { color: var(--amber); }
+
+.grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
+}
+.slot {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2);
+  text-align: center; min-height: 86px;
+}
+.slotName {
+  font-size: 11px; line-height: 1.25; overflow-wrap: anywhere; max-width: 100%;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.done { opacity: 0.4; filter: grayscale(0.8); }
+.inCommon { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.check {
+  position: absolute; top: 4px; right: 6px; color: var(--green); font-weight: 700; font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .books { grid-template-columns: 1fr; }
+  .slot { min-height: 76px; }
+}

@@ -39,7 +39,11 @@ Allagan Tools only learns what's in a retainer or the FC chest once you've opene
 
 After that, FC Hub keeps everything up to date as you play: changes go up within about a minute. You only need to reopen a retainer to refresh it after changing its contents somewhere FC Hub can't see.
 
-## 5. Search
+## 5. Wondrous Tails (optional)
+
+FC Hub also shares your **Wondrous Tails** journal so the FC can find duties you have in common. It uses **one character per person**: the first one you log in with after installing. To share a different character's journal, log into it and use **Share Wondrous Tails from … instead** in `/fchub config`. Alts are otherwise ignored.
+
+## 6. Search
 
 Open the FC Hub website, sign in with the same key, and search. **Who's uploaded** shows how fresh everyone's data is.
 

@@ -5,6 +5,7 @@ import type {
   OwnerItems,
   SearchResponse,
   SessionResponse,
+  WondrousTailsResponse,
 } from "../../src/api-types.ts";
 
 /** The session cookie is missing, expired or revoked. */
@@ -38,6 +39,8 @@ export const api = {
     request<SearchResponse>(`/api/v1/search?q=${encodeURIComponent(q)}`, { signal }),
 
   overview: () => request<OverviewResponse>("/api/v1/overview"),
+
+  wondrousTails: () => request<WondrousTailsResponse>("/api/v1/wondrous-tails"),
 
   ownerItems: (ownerId: string) => request<OwnerItems>(`/api/v1/owners/${encodeURIComponent(ownerId)}/items`),
 };
