@@ -65,7 +65,7 @@ public sealed class ProbeService : IDisposable
 
     private void OnAllaganChanged() => dirtySince = DateTime.UtcNow;
 
-    private void OnUpdate(IFramework _)
+    private void OnUpdate(IFramework fw)
     {
         var auto = dirtySince is { } since && DateTime.UtcNow - since >= Debounce;
         if (!refreshRequested && !auto)

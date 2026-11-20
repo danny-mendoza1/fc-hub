@@ -115,26 +115,26 @@ public sealed class AllaganToolsIpc : IDisposable
         return items;
     }
 
-    private void OnInitialized(bool _)
+    private void OnInitialized(bool value)
     {
         Interlocked.Increment(ref initializedCount);
         MarkEvent();
         log.Information("Allagan Tools reported initialized");
     }
 
-    private void OnItemAdded((uint, InventoryItem.ItemFlags, ulong, uint) _)
+    private void OnItemAdded((uint, InventoryItem.ItemFlags, ulong, uint) change)
     {
         Interlocked.Increment(ref itemAddedCount);
         MarkEvent();
     }
 
-    private void OnItemRemoved((uint, InventoryItem.ItemFlags, ulong, uint) _)
+    private void OnItemRemoved((uint, InventoryItem.ItemFlags, ulong, uint) change)
     {
         Interlocked.Increment(ref itemRemovedCount);
         MarkEvent();
     }
 
-    private void OnRetainerChanged(ulong? _)
+    private void OnRetainerChanged(ulong? retainerId)
     {
         Interlocked.Increment(ref retainerChangedCount);
         MarkEvent();

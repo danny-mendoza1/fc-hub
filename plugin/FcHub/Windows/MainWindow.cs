@@ -102,7 +102,7 @@ public sealed class MainWindow : Window
             $"{totalItems} items ({diag.RawRows} raw rows) · built {age:0}s ago");
         ImGui.TextColored(diag.CharacterIdsMatch ? Muted : Bad,
             $"Build {diag.TotalTime.TotalMilliseconds:0.0} ms (IPC {diag.IpcTime.TotalMilliseconds:0.0} ms) · " +
-            $"serialize {probe.LatestSerializeTime?.TotalMilliseconds ?? 0:0.0} ms · payload {(probe.LatestPayloadBytes ?? 0) / 1024.0:0.0} KB · " +
+            $"serialize {(probe.LatestSerializeTime?.TotalMilliseconds ?? 0):0.0} ms · payload {(probe.LatestPayloadBytes ?? 0) / 1024.0:0.0} KB · " +
             $"auto rebuilds {probe.AutoRefreshCount}" +
             (diag.CharacterIdsMatch ? string.Empty : " · WARNING: Allagan current character != logged-in character"));
 
