@@ -13,6 +13,7 @@ FC Hub runs third-party code in three places: npm packages (the React bundle in 
    - npm: exact versions in `web/package.json` (`web/.npmrc` sets `save-exact`), plus `package-lock.json` (integrity hashes). CI installs with `npm ci`.
    - NuGet: exact `PackageReference` versions, plus `packages.lock.json` for every project (`plugin/Directory.Build.props`). CI restores in locked mode, so a dependency change without a lock update fails.
    - GitHub Actions: full commit SHAs with the version in a comment (`uses: actions/checkout@<sha> # v7.0.1`). A tag can be moved to other code; a SHA can't.
+   - Dalamud reference assemblies (what the plugin compiles against): one commit of `goatcorp/dalamud-distrib`, checked by SHA-256 (`.github/actions/dalamud-reference`). Moving to a newer Dalamud is a deliberate one-PR change; Dependabot can't see it.
 2. **Updates wait 14 days; security fixes don't.** Dependabot version updates for npm, NuGet and Actions use `cooldown: default-days: 14`, so a release has two weeks to be caught and yanked before we're offered it. Cooldown doesn't apply to Dependabot *security* updates, which open as soon as an advisory exists (the repository setting "Dependabot security updates" must be on).
 3. **Known vulnerabilities fail CI.**
    - `npm audit --audit-level=high` fails on high or critical advisories.
