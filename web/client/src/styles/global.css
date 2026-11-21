@@ -41,3 +41,8 @@ th {
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
 }
 th, td { padding: 7px 8px; border-top: 1px solid var(--border); vertical-align: top; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9em;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px;
+}

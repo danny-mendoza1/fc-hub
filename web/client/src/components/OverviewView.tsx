@@ -16,7 +16,7 @@ export function OverviewView() {
     <section>
       <p className={ui.muted}>
         Open a row to browse its items. Each section shows when it was last captured in game; retainers and the FC chest refresh
-        when someone opens them.
+        when someone opens them. Something out of date? Type <code>/fchub upload</code> in game to send yours now.
       </p>
       {state.status === "loading" && <p className={ui.muted}>Loading…</p>}
       {state.status === "error" && <p className={ui.error}>{state.message}</p>}
