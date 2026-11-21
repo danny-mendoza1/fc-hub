@@ -45,7 +45,7 @@ jobs:
           Get-Content pluginmaster.json
 
       - name: Upload plugin package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: FcHub
           path: plugin/FcHub/bin/x64/Release/FcHub/*
