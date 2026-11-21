@@ -103,7 +103,8 @@ export function holdersOf(items: PlacedItem[]): ItemHolder[] {
   for (const item of items) {
     for (const place of item.places) {
       const key = holderKey(place);
-      if (!holders.has(key)) holders.set(key, { key, label: holderLabel(place), kind: isSharedStorage(place.ownerKind) ? "shared" : "member" });
+      if (!holders.has(key))
+        holders.set(key, { key, label: holderLabel(place), kind: isSharedStorage(place.ownerKind) ? "shared" : "member" });
     }
   }
   return [...holders.values()].sort((a, b) => Number(a.kind === "shared") - Number(b.kind === "shared") || a.label.localeCompare(b.label));

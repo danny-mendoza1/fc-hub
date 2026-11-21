@@ -1,8 +1,7 @@
 import type { Member } from "../../../src/api-types.ts";
-import { type View, VIEWS } from "../views.ts";
-import ui from "./ui.module.css";
+import { VIEWS, type View } from "../views.ts";
 import styles from "./TopBar.module.css";
-
+import ui from "./ui.module.css";
 
 interface Props {
   member: Member | null;
@@ -15,7 +14,10 @@ export function TopBar({ member, view, onNavigate, onSignOut }: Props) {
   return (
     <header className={styles.topbar}>
       <h1 className={styles.brand}>
-        <span className={styles.brandMark} aria-hidden="true">◆</span> FC Hub
+        <span className={styles.brandMark} aria-hidden="true">
+          ◆
+        </span>{" "}
+        FC Hub
       </h1>
       {member && (
         <>

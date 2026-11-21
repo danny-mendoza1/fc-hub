@@ -63,7 +63,9 @@ export class Validator {
 
   int(value: unknown, path: string, max = Number.MAX_SAFE_INTEGER): number | undefined {
     if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max) return value;
-    this.errors.push(max === Number.MAX_SAFE_INTEGER ? `${path} must be a non-negative integer` : `${path} must be an integer between 0 and ${max}`);
+    this.errors.push(
+      max === Number.MAX_SAFE_INTEGER ? `${path} must be a non-negative integer` : `${path} must be an integer between 0 and ${max}`,
+    );
     return undefined;
   }
 

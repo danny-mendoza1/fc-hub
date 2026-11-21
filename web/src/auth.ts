@@ -66,7 +66,7 @@ export function clearSessionCookie(): string {
 
 /** Looks up an active member by API key. */
 export async function memberForKey(db: SqlDatabase, key: string | null): Promise<AuthedMember | null> {
-  if (!key || !key.startsWith(KEY_PREFIX)) return null;
+  if (!key?.startsWith(KEY_PREFIX)) return null;
   const row = await db
     .prepare(
       `SELECT id, display_name, write_budget_override, write_budget_override_until

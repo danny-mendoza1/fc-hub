@@ -18,7 +18,6 @@ const ITEMS_PER_INSERT = 2_000;
  */
 const MAX_DIFF_JSON_CHARS = 600_000;
 
-
 export interface IngestResult {
   sectionsWritten: number;
   itemsWritten: number;
@@ -52,10 +51,7 @@ export async function ingestUpload(
 
   // New owners count against a per-character cap, so a buggy or hostile client can't create
   // unlimited owners (each one grows storage and every scan of it).
-  const owned = await db
-    .prepare("SELECT COUNT(*) AS n FROM owners WHERE reported_by = ?")
-    .bind(character.contentId)
-    .first<{ n: number }>();
+  const owned = await db.prepare("SELECT COUNT(*) AS n FROM owners WHERE reported_by = ?").bind(character.contentId).first<{ n: number }>();
   let ownerCount = owned?.n ?? 0;
 
   const ownerById = new Map(existingOwners.results.map((o) => [o.owner_id, o]));
@@ -122,12 +118,7 @@ export async function ingestUpload(
  * Characters belong to the member whose key first uploaded them. Throws 403 if another member
  * owns `character`; otherwise returns the upsert statement to run in the caller's batch.
  */
-export async function claimCharacter(
-  db: SqlDatabase,
-  member: Member,
-  character: Upload["character"],
-  now: Date,
-): Promise<SqlStatement> {
+export async function claimCharacter(db: SqlDatabase, member: Member, character: Upload["character"], now: Date): Promise<SqlStatement> {
   const claim = await db
     .prepare("SELECT member_id FROM characters WHERE content_id = ?")
     .bind(character.contentId)
@@ -166,7 +157,7 @@ const ITEM_COLUMNS = [
 
 const COLUMN_LIST = ITEM_COLUMNS.join(", ");
 const PARTITION = `PARTITION BY ${COLUMN_LIST}`;
-const SAME_ROW = ITEM_COLUMNS.map((c) => `i.${c} = c.${c}`).join(" AND ") + " AND i.n = c.n";
+const SAME_ROW = `${ITEM_COLUMNS.map((c) => `i.${c} = c.${c}`).join(" AND ")} AND i.n = c.n`;
 
 /**
  * `incoming_n`: the uploaded items. `current_n`: what the table holds for this section. Both number
@@ -217,10 +208,7 @@ export function syncSectionItems(db: SqlDatabase, ownerId: string, section: stri
   if (packed.length > MAX_DIFF_JSON_CHARS) {
     return replaceSectionItems(db, ownerId, section, items);
   }
-  return [
-    db.prepare(DELETE_REMOVED_SQL).bind(ownerId, section, packed),
-    db.prepare(INSERT_ADDED_SQL).bind(ownerId, section, packed),
-  ];
+  return [db.prepare(DELETE_REMOVED_SQL).bind(ownerId, section, packed), db.prepare(INSERT_ADDED_SQL).bind(ownerId, section, packed)];
 }
 
 function packItem(item: UploadItem): SqlValueTuple {

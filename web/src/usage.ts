@@ -43,7 +43,12 @@ export async function checkWriteBudget(db: SqlDatabase, member: AuthedMember, li
 
   const retryAfterSeconds = secondsUntilUtcMidnight(now);
   if ((used?.site ?? 0) >= limits.siteDailyWriteRows) {
-    return { ok: false, reason: "site", retryAfterSeconds, message: "The site's daily upload budget is used up; uploads resume at 00:00 UTC." };
+    return {
+      ok: false,
+      reason: "site",
+      retryAfterSeconds,
+      message: "The site's daily upload budget is used up; uploads resume at 00:00 UTC.",
+    };
   }
   if ((used?.member ?? 0) >= memberBudget(member, limits, now)) {
     return { ok: false, reason: "member", retryAfterSeconds, message: "Your daily upload budget is used up; uploads resume at 00:00 UTC." };
@@ -122,7 +127,12 @@ export async function usageReport(db: SqlDatabase, limits: Limits, now: Date): P
 }
 
 /** PUT /api/v1/admin/members/:id/write-budget. `rows: null` clears the override. */
-export async function setWriteBudgetOverride(db: SqlDatabase, memberId: number, rows: number | null, until: string | null): Promise<boolean> {
+export async function setWriteBudgetOverride(
+  db: SqlDatabase,
+  memberId: number,
+  rows: number | null,
+  until: string | null,
+): Promise<boolean> {
   const result = await db
     .prepare("UPDATE members SET write_budget_override = ?, write_budget_override_until = ? WHERE id = ?")
     .bind(rows, rows === null ? null : until, memberId)

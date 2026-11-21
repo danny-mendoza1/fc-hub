@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
-import { beforeEach, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import { routeTable } from "../src/app.ts";
 import { readOnly } from "../src/db/guards.ts";
 import { DEFAULT_LIMITS, resolveLimits } from "../src/limits.ts";
-import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, envWith, fakeIconFetch, item, send, type TestEnv, totalChanges, upload } from "./helpers.ts";
+import {
+  ADMIN_TOKEN,
+  ALICE,
+  ALICE_RETAINER,
+  addMember,
+  BOB,
+  call,
+  createEnv,
+  envWith,
+  fakeIconFetch,
+  item,
+  send,
+  type TestEnv,
+  totalChanges,
+  upload,
+} from "./helpers.ts";
 
 const aliceBags = (quantity = 10) =>
   upload(ALICE, "Alice Example", [
@@ -17,7 +32,12 @@ const aliceBags = (quantity = 10) =>
 
 const bobBags = () =>
   upload(BOB, "Bob Example", [
-    { ownerId: BOB, kind: "character", name: "Bob Example", sections: [{ section: "CharacterBags", items: [item(4551, "Potion", 1, "Inventory · bag 1 · slot 1")] }] },
+    {
+      ownerId: BOB,
+      kind: "character",
+      name: "Bob Example",
+      sections: [{ section: "CharacterBags", items: [item(4551, "Potion", 1, "Inventory · bag 1 · slot 1")] }],
+    },
   ]);
 
 /** Example values for path parameters. A new route with a new parameter must add one here. */
@@ -51,7 +71,9 @@ describe("route policies", () => {
       if (r.policy.writes === "metered") assert.equal(r.policy.access, "member", `${r.path}: cookies must never write`);
       if (r.policy.writes === "admin") assert.match(r.path, /^\/api\/v1\/admin\//, r.path);
     }
-    const metered = routeTable().filter((r) => r.policy.writes === "metered").map((r) => `${r.method} ${r.path}`);
+    const metered = routeTable()
+      .filter((r) => r.policy.writes === "metered")
+      .map((r) => `${r.method} ${r.path}`);
     assert.deepEqual(metered.sort(), ["POST /api/v1/snapshots", "POST /api/v1/wondrous-tails"]);
   });
 
@@ -60,7 +82,12 @@ describe("route policies", () => {
     const db = readOnly(env.DB);
     assert.equal((await db.prepare("SELECT 1 AS one").first<{ one: number }>())?.one, 1);
     assert.ok(await db.prepare("SELECT updated_at, last_upload_at FROM owners, characters LIMIT 1").all());
-    for (const sql of ["INSERT INTO members VALUES (1)", "update members set display_name = 'x'", "DELETE FROM items", "DROP TABLE items"]) {
+    for (const sql of [
+      "INSERT INTO members VALUES (1)",
+      "update members set display_name = 'x'",
+      "DELETE FROM items",
+      "DROP TABLE items",
+    ]) {
       assert.throws(() => db.prepare(sql), /read-only/, sql);
     }
     assert.throws(() => db.batch([]), /read-only/);
@@ -154,10 +181,17 @@ describe("daily write budget", () => {
     assert.equal((await budget({ dailyWriteRows: 1_000 }, null)).status, 401, "admin only");
     assert.equal((await budget({ dailyWriteRows: -1 })).status, 422);
     assert.equal((await budget({ dailyWriteRows: 1_000, until: "not a date" })).status, 422);
-    assert.equal((await call(env, "PUT", "/api/v1/admin/members/99/write-budget", { token: ADMIN_TOKEN, body: { dailyWriteRows: 1 } })).status, 404);
+    assert.equal(
+      (await call(env, "PUT", "/api/v1/admin/members/99/write-budget", { token: ADMIN_TOKEN, body: { dailyWriteRows: 1 } })).status,
+      404,
+    );
 
     const tomorrow = new Date(Date.now() + 86_400_000).toISOString();
-    assert.deepEqual((await budget({ dailyWriteRows: 1_000, until: tomorrow })).body, { memberId: 1, dailyWriteRows: 1_000, until: tomorrow });
+    assert.deepEqual((await budget({ dailyWriteRows: 1_000, until: tomorrow })).body, {
+      memberId: 1,
+      dailyWriteRows: 1_000,
+      until: tomorrow,
+    });
     assert.equal((await call(env, "POST", "/api/v1/snapshots", { token: alice, body: aliceBags(2) })).status, 200);
 
     // An expired override no longer applies.
@@ -235,7 +269,11 @@ describe("upload limits", () => {
     const warn = console.warn;
     console.warn = () => undefined;
     try {
-      const limits = resolveLimits({ LIMIT_MEMBER_DAILY_WRITE_ROWS: "lots", LIMIT_SITE_DAILY_WRITE_ROWS: "0", LIMIT_ITEMS_PER_UPLOAD: "1_500" });
+      const limits = resolveLimits({
+        LIMIT_MEMBER_DAILY_WRITE_ROWS: "lots",
+        LIMIT_SITE_DAILY_WRITE_ROWS: "0",
+        LIMIT_ITEMS_PER_UPLOAD: "1_500",
+      });
       assert.equal(limits.memberDailyWriteRows, DEFAULT_LIMITS.memberDailyWriteRows);
       assert.equal(limits.siteDailyWriteRows, DEFAULT_LIMITS.siteDailyWriteRows);
       assert.equal(limits.itemsPerUpload, 1_500);
@@ -252,8 +290,13 @@ describe("upload limits", () => {
 describe("indexes", () => {
   it("items carry only the owner/section index (every index is paid for on every write)", () => {
     const env = createEnv();
-    const indexes = env.DB.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'items' AND sql IS NOT NULL").all() as { name: string }[];
-    assert.deepEqual(indexes.map((i) => i.name), ["items_by_owner_section"]);
+    const indexes = env.DB.raw
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'items' AND sql IS NOT NULL")
+      .all() as { name: string }[];
+    assert.deepEqual(
+      indexes.map((i) => i.name),
+      ["items_by_owner_section"],
+    );
   });
 });
 

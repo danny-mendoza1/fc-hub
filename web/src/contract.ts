@@ -56,7 +56,6 @@ export interface Upload {
 /** The upload-shape limits from limits.ts (overridable there, not here). */
 export type UploadLimits = Pick<Limits, "ownersPerUpload" | "sectionsPerOwner" | "itemsPerSection" | "itemsPerUpload">;
 
-
 /** Strict structural validation; unknown fields are ignored, wrong types are errors. */
 export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LIMITS): Validation<Upload> {
   const v = new Validator();
@@ -123,7 +122,8 @@ export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LI
   });
 
   const totalItems = owners?.reduce((sum, o) => sum + (o?.sections?.reduce((n, sec) => n + (sec?.items?.length ?? 0), 0) ?? 0), 0) ?? 0;
-  if (totalItems > limits.itemsPerUpload) errors.push(`owners hold ${totalItems} items in total; at most ${limits.itemsPerUpload} per upload`);
+  if (totalItems > limits.itemsPerUpload)
+    errors.push(`owners hold ${totalItems} items in total; at most ${limits.itemsPerUpload} per upload`);
 
   const ownerIds = owners?.map((o) => o?.ownerId);
   if (ownerIds && new Set(ownerIds).size !== ownerIds.length) errors.push("owners has duplicate ownerIds");

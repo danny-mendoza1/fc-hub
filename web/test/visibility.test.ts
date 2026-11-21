@@ -14,7 +14,9 @@ describe("revoked members", () => {
     const ore = (qty: number) => [item(5111, "Iron Ore", qty, "slot 1")];
     await call(env, "POST", "/api/v1/snapshots", {
       token: alice,
-      body: upload(ALICE, "Alice Example", [{ ownerId: ALICE, kind: "character", name: null, sections: [{ section: "CharacterBags", items: ore(1) }] }]),
+      body: upload(ALICE, "Alice Example", [
+        { ownerId: ALICE, kind: "character", name: null, sections: [{ section: "CharacterBags", items: ore(1) }] },
+      ]),
     });
     await call(env, "POST", "/api/v1/snapshots", {
       token: bob,

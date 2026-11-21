@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "pluginVersion": "0.3.1.0",
+  "capturedAt": "2026-11-20T20:15:03.1234567+00:00",
+  "character": { "contentId": "18014498500000001", "name": "Alice Example", "homeWorldId": 409, "homeWorld": "Kraken" },
+  "hasJournal": true,
+  "isExpired": false,
+  "expiresAt": "2026-12-01T08:00:00+00:00",
+  "secondChancePoints": 2,
+  "stickersPlaced": 3,
+  "slots": [
+    { "index": 0, "orderId": 200, "name": "Objective 1", "iconId": 61800, "type": 0, "dataId": 1000, "status": "claimed" },
+    { "index": 1, "orderId": 201, "name": "Objective 2", "iconId": 61801, "type": 0, "dataId": 1001, "status": "claimed" },
+    { "index": 2, "orderId": 202, "name": "Objective 3", "iconId": 61802, "type": 0, "dataId": 1002, "status": "claimed" },
+    { "index": 3, "orderId": 203, "name": "Objective 4", "iconId": 61803, "type": 0, "dataId": 1003, "status": "claimable" },
+    { "index": 4, "orderId": 204, "name": "Objective 5", "iconId": 61804, "type": 0, "dataId": 1004, "status": "open" },
+    { "index": 5, "orderId": 205, "name": "Objective 6", "iconId": 61805, "type": 0, "dataId": 1005, "status": "open" },
+    { "index": 6, "orderId": 206, "name": "Objective 7", "iconId": 61806, "type": 0, "dataId": 1006, "status": "open" },
+    { "index": 7, "orderId": 207, "name": "Objective 8", "iconId": 61807, "type": 0, "dataId": 1007, "status": "open" },
+    { "index": 8, "orderId": 208, "name": "Objective 9", "iconId": 61808, "type": 3, "dataId": 1008, "status": "open" },
+    { "index": 9, "orderId": 209, "name": "Objective 10", "iconId": 61809, "type": 1, "dataId": 1009, "status": "open" },
+    { "index": 10, "orderId": 210, "name": "Objective 11", "iconId": 61810, "type": 2, "dataId": 1010, "status": "open" },
+    { "index": 11, "orderId": 211, "name": "Objective 12", "iconId": 61811, "type": 3, "dataId": 1011, "status": "open" },
+    { "index": 12, "orderId": 212, "name": "Objective 13", "iconId": 61812, "type": 1, "dataId": 1012, "status": "open" },
+    { "index": 13, "orderId": 213, "name": "Objective 14", "iconId": 61813, "type": 2, "dataId": 1013, "status": "open" },
+    { "index": 14, "orderId": 214, "name": "Objective 15", "iconId": 61814, "type": 3, "dataId": 1014, "status": "open" },
+    { "index": 15, "orderId": 215, "name": "Objective 16", "iconId": 61815, "type": 1, "dataId": 1015, "status": "open" }
+  ]
+}

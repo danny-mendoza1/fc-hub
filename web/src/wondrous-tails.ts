@@ -177,7 +177,8 @@ export function validateWondrousTails(input: unknown): Validation<WtUpload> {
   const contentId = v.id(c?.contentId, "character.contentId");
 
   const hasJournal = v.bool(root.hasJournal, "hasJournal") ?? false;
-  const slotsIn = Array.isArray(root.slots) ? root.slots : (v.errors.push("slots must be an array"), []);
+  const slotsIn = Array.isArray(root.slots) ? root.slots : [];
+  if (!Array.isArray(root.slots)) v.errors.push("slots must be an array");
   if (hasJournal && slotsIn.length !== WT_SLOT_COUNT) v.errors.push(`slots must have ${WT_SLOT_COUNT} entries when hasJournal is true`);
   if (!hasJournal && slotsIn.length !== 0) v.errors.push("slots must be empty when hasJournal is false");
 

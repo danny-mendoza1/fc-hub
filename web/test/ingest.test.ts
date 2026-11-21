@@ -18,7 +18,9 @@ interface StoredRow {
 
 function rows(env: Env, ownerId: string, section: string): StoredRow[] {
   return env.DB.raw
-    .prepare("SELECT rowid AS rid, item_id, quantity, sorted_slot FROM items WHERE owner_id = ? AND section = ? ORDER BY sorted_slot, rowid")
+    .prepare(
+      "SELECT rowid AS rid, item_id, quantity, sorted_slot FROM items WHERE owner_id = ? AND section = ? ORDER BY sorted_slot, rowid",
+    )
     .all(ownerId, section) as unknown as StoredRow[];
 }
 
@@ -38,7 +40,12 @@ let clock: number;
 
 async function send(section: string, items: UploadItem[], ownerId = ALICE, kind: "character" | "freeCompany" = "character") {
   clock += 1_000;
-  const body = upload(ALICE, "Alice Example", [{ ownerId, kind, name: null, sections: [{ section, items }] }], new Date(clock).toISOString());
+  const body = upload(
+    ALICE,
+    "Alice Example",
+    [{ ownerId, kind, name: null, sections: [{ section, items }] }],
+    new Date(clock).toISOString(),
+  );
   const before = totalChanges(env);
   const res = await call(env, "POST", "/api/v1/snapshots", { token: key, body });
   assert.equal(res.status, 200, JSON.stringify(res.body));
@@ -72,7 +79,10 @@ describe("section ingest writes only what changed", () => {
     await send("CharacterBags", bag());
     const before = rows(env, ALICE, "CharacterBags").map((r) => r.rid);
     const changes = await send("CharacterBags", bag());
-    assert.deepEqual(rows(env, ALICE, "CharacterBags").map((r) => r.rid), before);
+    assert.deepEqual(
+      rows(env, ALICE, "CharacterBags").map((r) => r.rid),
+      before,
+    );
     assert.ok(changes <= 3 + LEDGER, `expected only metadata upserts, got ${changes}`);
   });
 
@@ -118,13 +128,18 @@ describe("section ingest writes only what changed", () => {
     await send("FreeCompanyBags", chest(200), FC, "freeCompany");
     await send("FreeCompanyBags", chest(100), FC, "freeCompany");
     const after = rows(env, FC, "FreeCompanyBags");
-    assert.deepEqual(after.map((r) => r.quantity), [100]);
+    assert.deepEqual(
+      after.map((r) => r.quantity),
+      [100],
+    );
   });
 
   test("oversized sections fall back to replace-all and still store everything", async () => {
     // At the per-section item limit, long names push the packed JSON past MAX_DIFF_JSON_CHARS.
     const longText = "x".repeat(190);
-    const huge = Array.from({ length: DEFAULT_LIMITS.itemsPerSection }, (_, i) => item(i + 1, longText, 1, `${longText}${i}`, { sortedSlot: i }));
+    const huge = Array.from({ length: DEFAULT_LIMITS.itemsPerSection }, (_, i) =>
+      item(i + 1, longText, 1, `${longText}${i}`, { sortedSlot: i }),
+    );
     await send("HousingInteriorItems", huge, ALICE);
     assert.equal(rows(env, ALICE, "HousingInteriorItems").length, DEFAULT_LIMITS.itemsPerSection);
 

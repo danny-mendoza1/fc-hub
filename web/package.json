@@ -16,13 +16,18 @@
     "deploy": "vite build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply fc-hub --local",
     "db:preflight:remote": "wrangler d1 execute fc-hub --remote --file scripts/preflight-diff-ingest.sql",
-    "db:migrate:remote": "wrangler d1 migrations apply fc-hub --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply fc-hub --remote",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test:e2e": "vite build && playwright test"
   },
   "dependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

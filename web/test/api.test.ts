@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { gzipSync } from "node:zlib";
 import { beforeEach, describe, it } from "node:test";
+import { gzipSync } from "node:zlib";
 import type { AppEnv } from "../src/app.ts";
-import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, BOB, FC, addMember, call, createEnv, item, upload } from "./helpers.ts";
+import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, FC, item, upload } from "./helpers.ts";
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
@@ -79,7 +77,10 @@ describe("uploads and search", () => {
           kind: "character",
           name: "Alice Example",
           sections: [
-            { section: "CharacterBags", items: [item(5057, "Iron Ore", 99, "Inventory · bag 1 · slot 1"), item(5057, "Iron Ore", 12, "Inventory · bag 2 · slot 3")] },
+            {
+              section: "CharacterBags",
+              items: [item(5057, "Iron Ore", 99, "Inventory · bag 1 · slot 1"), item(5057, "Iron Ore", 12, "Inventory · bag 2 · slot 3")],
+            },
             { section: "Crystals", items: [item(2, "Fire Shard", 4321, "Crystals")] },
           ],
         },
@@ -87,13 +88,26 @@ describe("uploads and search", () => {
           ownerId: ALICE_RETAINER,
           kind: "retainer",
           name: "Sir-noodle",
-          sections: [{ section: "RetainerBags", items: [item(5057, "Iron Ore", 50, "Retainer · page 1 · slot 1"), item(36104, "Grade 5 Tincture of Strength", 35, "Retainer · page 1 · slot 2", { isHq: true })] }],
+          sections: [
+            {
+              section: "RetainerBags",
+              items: [
+                item(5057, "Iron Ore", 50, "Retainer · page 1 · slot 1"),
+                item(36104, "Grade 5 Tincture of Strength", 35, "Retainer · page 1 · slot 2", { isHq: true }),
+              ],
+            },
+          ],
         },
         {
           ownerId: FC,
           kind: "freeCompany",
           name: "Sea of Stars",
-          sections: [{ section: "FreeCompanyBags", items: [item(36104, "Grade 5 Tincture of Strength", 85, "FC chest · page 1 · slot 1", { isHq: true })] }],
+          sections: [
+            {
+              section: "FreeCompanyBags",
+              items: [item(36104, "Grade 5 Tincture of Strength", 85, "FC chest · page 1 · slot 1", { isHq: true })],
+            },
+          ],
         },
       ],
       capturedAt,
@@ -148,7 +162,11 @@ describe("uploads and search", () => {
     assert.equal(res.body.sectionsWritten, 1);
 
     const ore = (await call(env, "GET", "/api/v1/search?q=iron ore", { token: alice })).body.hits[0];
-    assert.deepEqual(ore.holdings.map((h: any) => h.ownerKind), ["retainer"], "bags cleared, retainer untouched");
+    assert.deepEqual(
+      ore.holdings.map((h: any) => h.ownerKind),
+      ["retainer"],
+      "bags cleared, retainer untouched",
+    );
     const shards = (await call(env, "GET", "/api/v1/search?q=fire shard", { token: alice })).body.hits;
     assert.equal(shards[0].totalQuantity, 4321, "crystals untouched");
   });
@@ -170,7 +188,12 @@ describe("uploads and search", () => {
 
     // Bob's upload: his own character, a newer view of the FC chest, and (bogus) Alice's retainer.
     const bobUpload = upload(BOB, "Bob Example", [
-      { ownerId: BOB, kind: "character", name: "Bob Example", sections: [{ section: "CharacterBags", items: [item(5057, "Iron Ore", 1, "Inventory · bag 1 · slot 1")] }] },
+      {
+        ownerId: BOB,
+        kind: "character",
+        name: "Bob Example",
+        sections: [{ section: "CharacterBags", items: [item(5057, "Iron Ore", 1, "Inventory · bag 1 · slot 1")] }],
+      },
       { ownerId: FC, kind: "freeCompany", name: "Sea of Stars", sections: [{ section: "FreeCompanyBags", items: [] }] },
       { ownerId: ALICE_RETAINER, kind: "retainer", name: "Sir-noodle", sections: [{ section: "RetainerBags", items: [] }] },
     ]);
@@ -179,7 +202,11 @@ describe("uploads and search", () => {
     assert.deepEqual(res.body.ownersRejected, [ALICE_RETAINER]);
 
     const tincture = (await call(env, "GET", "/api/v1/search?q=tincture", { token: bob })).body.hits[0];
-    assert.deepEqual(tincture.holdings.map((h: any) => h.ownerKind), ["retainer"], "FC chest emptied by Bob, Alice's retainer intact");
+    assert.deepEqual(
+      tincture.holdings.map((h: any) => h.ownerKind),
+      ["retainer"],
+      "FC chest emptied by Bob, Alice's retainer intact",
+    );
   });
 
   it("accepts gzip bodies and rejects decompression bombs", async () => {
@@ -199,15 +226,6 @@ describe("uploads and search", () => {
       headers: { "content-type": "application/json", "content-encoding": "gzip" },
     });
     assert.equal(res.status, 413);
-  });
-
-  it("accepts the exact JSON the C# plugin emits (contract fixture)", async () => {
-    // Shape produced by System.Text.Json in plugin/FcHub/Upload/UploadModels.cs:
-    // 7-digit fractional timestamps, null owner names, empty item names, camelCase enums.
-    const fixture = JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "plugin-upload-v2.json"), "utf8"));
-    const res = await call(env, "POST", "/api/v1/snapshots", { token: alice, body: fixture });
-    assert.equal(res.status, 200, JSON.stringify(res.body));
-    assert.deepEqual(res.body, { sectionsWritten: 4, itemsWritten: 3, sectionsSkippedStale: [], ownersRejected: [] });
   });
 
   it("limits search query length", async () => {

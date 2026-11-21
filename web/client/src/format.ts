@@ -97,9 +97,11 @@ export function placeWhere(place: ItemPlace): string {
 /** Tooltip detail: whose it is, stacks, and when it was captured. */
 export function placeTitle(place: ItemPlace): string {
   const whose =
-    place.ownerKind === "retainer" ? `${place.character}'s retainer ${place.ownerName ?? ""}`.trim()
-    : place.ownerKind === "character" ? `${place.character}'s ${(SECTION_LABELS[place.section] ?? place.section).toLowerCase()}`
-    : placeWhere(place);
+    place.ownerKind === "retainer"
+      ? `${place.character}'s retainer ${place.ownerName ?? ""}`.trim()
+      : place.ownerKind === "character"
+        ? `${place.character}'s ${(SECTION_LABELS[place.section] ?? place.section).toLowerCase()}`
+        : placeWhere(place);
   const stacks = place.stacks > 1 ? ` in ${place.stacks} stacks` : "";
   return `${whose}: ${numberFormat.format(place.quantity)}${stacks}, as of ${ago(place.updatedAt)}`;
 }

@@ -6,11 +6,11 @@ import type { Member } from "./auth.ts";
 import type { OverviewCharacter } from "./owners.ts";
 import type { SearchHit } from "./search.ts";
 
+export type { Member } from "./auth.ts";
+export type { AlsoInResponse, CommonItem, ItemHolder, ItemPlace, ItemsInCommonResponse, PlacedItem } from "./item-overlap.ts";
 export type { OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection } from "./owners.ts";
 export type { Holding, SearchHit } from "./search.ts";
-export type { Member } from "./auth.ts";
 export { MAX_QUERY_LENGTH } from "./search.ts";
-export type { AlsoInResponse, CommonItem, ItemHolder, ItemPlace, ItemsInCommonResponse, PlacedItem } from "./item-overlap.ts";
 export type { BookStatus, CommonDuty, SlotStatus, WondrousTailsResponse, WtBook, WtSlot } from "./wondrous-tails.ts";
 
 export interface MeCharacter {

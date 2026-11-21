@@ -1,1 +1,81 @@
-{"schemaVersion":2,"pluginVersion":"0.2.0.0","capturedAt":"2026-11-20T18:20:42.4686733+00:00","character":{"contentId":"18014498500000001","name":"Alice Example","homeWorldId":409,"homeWorld":"Kraken"},"owners":[{"ownerId":"18014498500000001","kind":"character","name":"Alice Example","sections":[{"section":"CharacterBags","items":[{"itemId":4554,"name":"Cordial","iconId":20603,"quantity":17,"isHq":false,"isCollectable":false,"container":0,"sortedContainer":0,"sortedSlot":1,"location":"Inventory · bag 1 · slot 2"}]},{"section":"Currency","items":[]}]},{"ownerId":"9280933600000000001","kind":"freeCompany","name":null,"sections":[{"section":"FreeCompanyBags","items":[{"itemId":80,"name":"","iconId":0,"quantity":2257356,"isHq":false,"isCollectable":false,"container":2502,"sortedContainer":2502,"sortedSlot":0,"location":"FC chest · slot 1"}]}]},{"ownerId":"86131342900265472","kind":"housing","name":"Ishgard · Ward 2 · Plot 51","sections":[{"section":"HousingInteriorItems","items":[{"itemId":6141,"name":"Cordial","iconId":20603,"quantity":1,"isHq":false,"isCollectable":false,"container":25003,"sortedContainer":25003,"sortedSlot":0,"location":"House (interior) · page 1 · slot 1"}]}]}]}
+{
+  "schemaVersion": 2,
+  "pluginVersion": "0.2.0.0",
+  "capturedAt": "2026-11-20T18:20:42.4686733+00:00",
+  "character": { "contentId": "18014498500000001", "name": "Alice Example", "homeWorldId": 409, "homeWorld": "Kraken" },
+  "owners": [
+    {
+      "ownerId": "18014498500000001",
+      "kind": "character",
+      "name": "Alice Example",
+      "sections": [
+        {
+          "section": "CharacterBags",
+          "items": [
+            {
+              "itemId": 4554,
+              "name": "Cordial",
+              "iconId": 20603,
+              "quantity": 17,
+              "isHq": false,
+              "isCollectable": false,
+              "container": 0,
+              "sortedContainer": 0,
+              "sortedSlot": 1,
+              "location": "Inventory · bag 1 · slot 2"
+            }
+          ]
+        },
+        { "section": "Currency", "items": [] }
+      ]
+    },
+    {
+      "ownerId": "9280933600000000001",
+      "kind": "freeCompany",
+      "name": null,
+      "sections": [
+        {
+          "section": "FreeCompanyBags",
+          "items": [
+            {
+              "itemId": 80,
+              "name": "",
+              "iconId": 0,
+              "quantity": 2257356,
+              "isHq": false,
+              "isCollectable": false,
+              "container": 2502,
+              "sortedContainer": 2502,
+              "sortedSlot": 0,
+              "location": "FC chest · slot 1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ownerId": "86131342900265472",
+      "kind": "housing",
+      "name": "Ishgard · Ward 2 · Plot 51",
+      "sections": [
+        {
+          "section": "HousingInteriorItems",
+          "items": [
+            {
+              "itemId": 6141,
+              "name": "Cordial",
+              "iconId": 20603,
+              "quantity": 1,
+              "isHq": false,
+              "isCollectable": false,
+              "container": 25003,
+              "sortedContainer": 25003,
+              "sortedSlot": 0,
+              "location": "House (interior) · page 1 · slot 1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

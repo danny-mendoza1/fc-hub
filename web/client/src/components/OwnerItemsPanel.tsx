@@ -7,8 +7,8 @@ import { useApi } from "../hooks.ts";
 import { Accordion } from "./Accordion.tsx";
 import { Age, HqBadge } from "./Bits.tsx";
 import { ItemIcon } from "./ItemIcon.tsx";
-import ui from "./ui.module.css";
 import styles from "./OwnerItemsPanel.module.css";
+import ui from "./ui.module.css";
 
 /** Item (+HQ) → every storage place it's in, this owner's included. */
 type PlacesByItem = ReadonlyMap<string, ItemPlace[]>;
@@ -70,6 +70,7 @@ function ItemList({ items, ownerId, section, places }: ItemListProps) {
   return (
     <ul className={styles.items}>
       {items.map((item, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list from one response; the index only breaks ties between same-slot rows.
         <li key={`${item.sortedContainer}:${item.sortedSlot}:${index}`} className={styles.item}>
           <ItemIcon iconId={item.iconId} />
           <span className={styles.itemName}>

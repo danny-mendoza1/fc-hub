@@ -11,9 +11,7 @@ export function applyMigrations(db: NodeSqliteDatabase, directory: string): stri
   db.raw.exec(
     "CREATE TABLE IF NOT EXISTS d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TEXT NOT NULL)",
   );
-  const applied = new Set(
-    (db.raw.prepare("SELECT name FROM d1_migrations").all() as { name: string }[]).map((r) => r.name),
-  );
+  const applied = new Set((db.raw.prepare("SELECT name FROM d1_migrations").all() as { name: string }[]).map((r) => r.name));
 
   const pending = readdirSync(directory)
     .filter((f) => f.endsWith(".sql") && !applied.has(f))

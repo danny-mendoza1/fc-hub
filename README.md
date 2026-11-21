@@ -30,6 +30,7 @@ Each member runs a lightweight Dalamud plugin that collects what their character
 | `plugin/` | Dalamud plugin (C#, .NET 10, Dalamud API 15) |
 | `web/` | Web API (TypeScript, Workers + D1 / Node + SQLite) and React UI (`web/client`) |
 | `docs/adr/` | Architecture decision records |
+| `docs/extending.md` | How to add a feature end to end (plugin → API → website), and the tests that go with it |
 
 ## Roadmap
 
@@ -54,6 +55,8 @@ Prerequisites (Windows): the [.NET 10 SDK](https://dotnet.microsoft.com/download
 cd plugin
 dotnet build
 ```
+
+`dotnet test` runs the plugin's unit and contract tests (no game needed); CI runs them on every PR.
 
 The output is `plugin/FcHub/bin/x64/Debug/FcHub.dll`. In game: `/xlsettings` → **Experimental** → add that DLL's full path under **Dev Plugin Locations** → Save. Then `/xlplugins` → **Dev Tools → Installed Dev Plugins** → enable **FC Hub**.
 

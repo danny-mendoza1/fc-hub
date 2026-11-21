@@ -1,6 +1,14 @@
 import { FROM_ACTIVE_ITEMS } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
-import { type AlsoInResponse, holderKey, holdersOf, type ItemsInCommonResponse, itemKey, type PlacedItem, STORAGE_SECTIONS } from "./item-overlap.ts";
+import {
+  type AlsoInResponse,
+  holderKey,
+  holdersOf,
+  type ItemsInCommonResponse,
+  itemKey,
+  type PlacedItem,
+  STORAGE_SECTIONS,
+} from "./item-overlap.ts";
 
 interface PlaceRow {
   item_id: number;

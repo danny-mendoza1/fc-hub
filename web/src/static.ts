@@ -21,7 +21,7 @@ export function diskAssets(root: string): { fetch(request: Request): Promise<Res
     async fetch(request: Request): Promise<Response> {
       const { pathname } = new URL(request.url);
       const relative = decodeURIComponent(pathname === "/" ? "/index.html" : pathname);
-      const file = resolve(base, "." + relative);
+      const file = resolve(base, `.${relative}`);
       if (file !== base && !file.startsWith(base + sep)) {
         return new Response("Not found", { status: 404 });
       }

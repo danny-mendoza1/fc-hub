@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import { type AppEnv, handle } from "../src/app.ts";
-import type { Fetcher } from "../src/icons.ts";
 import type { Upload, UploadItem, UploadOwner } from "../src/contract.ts";
 import { applyMigrations } from "../src/db/migrate.ts";
 import { NodeSqliteDatabase } from "../src/db/sqlite.ts";
+import type { Fetcher } from "../src/icons.ts";
 
 export const ADMIN_TOKEN = "test-admin-token";
 
@@ -33,7 +33,8 @@ export function totalChanges(env: TestEnv): number {
 }
 
 /** Stands in for XIVAPI: every icon is a (tiny) PNG. */
-export const fakeIconFetch: Fetcher = async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } });
+export const fakeIconFetch: Fetcher = async () =>
+  new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } });
 
 /** The raw Response, for status/headers or non-JSON bodies (icons); call() parses JSON. */
 export function send(env: AppEnv, method: string, path: string, options: CallOptions = {}): Promise<Response> {

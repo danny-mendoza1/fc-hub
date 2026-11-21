@@ -32,6 +32,9 @@ jobs:
       - name: Build (Release)
         run: dotnet build plugin/FcHub.slnx --configuration Release
 
+      - name: Unit and contract tests
+        run: dotnet test plugin/FcHub.slnx --configuration Release --no-build
+
       - name: List build output
         shell: pwsh
         run: Get-ChildItem -Recurse -File plugin/FcHub/bin | Select-Object -ExpandProperty FullName
@@ -70,6 +73,9 @@ jobs:
       - name: Install (exact versions from the lockfile)
         run: npm ci --no-audit --no-fund
 
+      - name: Lint and format check (Biome)
+        run: npm run lint
+
       - name: Typecheck (API + React client)
         run: npm run typecheck
 
@@ -78,3 +84,17 @@ jobs:
 
       - name: Test (API + built client)
         run: npm test
+
+      - name: Install Chromium for the browser tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke tests (Playwright)
+        run: npx playwright test
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: web/test-results
+          retention-days: 7
