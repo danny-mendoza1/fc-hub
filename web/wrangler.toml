@@ -23,15 +23,6 @@ database_name = "fc-hub"
 database_id = "1dab7251-7263-4eea-b729-16afe4fca447"
 migrations_dir = "migrations"
 
-# Run the Worker next to D1 (primary in ENAM, eastern North America) instead of at the edge nearest
-# each user. A page request makes 2-3 D1 queries one after another; at the edge each one crosses
-# the country (Chicago ~25 ms, Portland ~70 ms per trip), while pinned the request crosses once and
-# the queries stay local. Static files still come from the nearest edge (assets don't run the
-# Worker; see run_worker_first above). Smart Placement would do this automatically but needs more
-# traffic than a few members send. To undo, delete this block and deploy.
-[placement]
-region = "aws:us-east-1"
-
 [observability]
 enabled = true
 
