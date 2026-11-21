@@ -3,6 +3,7 @@ import { validateUpload } from "./contract.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { IngestError, ingestUpload } from "./ingest.ts";
 import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
+import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
 import { MAX_QUERY_LENGTH, overview, ownerItems, searchItems } from "./search.ts";
 import { validateWondrousTails } from "./wondrous-tails.ts";
 import { listWondrousTails, saveWondrousTails } from "./wondrous-tails-store.ts";
@@ -133,6 +134,20 @@ route("GET", "/api/v1/owners/:ownerId/items", async (request, env, params) => {
   const result = await ownerItems(env.DB, ownerId);
   if (!result) throw new HttpError(404, "not_found", "No such owner");
   return json(result);
+});
+
+/** Where else each of this owner's items is stored ("Also in" under the drill-down). */
+route("GET", "/api/v1/owners/:ownerId/also-in", async (request, env, params) => {
+  await requireMember(request, env, true);
+  const ownerId = params.ownerId ?? "";
+  if (!/^[1-9][0-9]{0,19}$/.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
+  return json(await alsoIn(env.DB, ownerId));
+});
+
+/** Items that two or more members (or the FC chest) store; the chosen party is applied in the browser. */
+route("GET", "/api/v1/items/in-common", async (request, env) => {
+  await requireMember(request, env, true);
+  return json(await itemsInCommon(env.DB));
 });
 
 /** Item icon by game icon id, proxied from XIVAPI (see icons.ts). Members only, so it isn't a public proxy. */

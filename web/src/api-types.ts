@@ -8,6 +8,7 @@ import type { OverviewCharacter, SearchHit } from "./search.ts";
 export type { Holding, OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection, SearchHit } from "./search.ts";
 export type { Member } from "./auth.ts";
 export { MAX_QUERY_LENGTH } from "./search.ts";
+export type { AlsoInResponse, CommonItem, ItemHolder, ItemPlace, ItemsInCommonResponse, PlacedItem } from "./item-overlap.ts";
 export type { BookStatus, CommonDuty, SlotStatus, WondrousTailsResponse, WtBook, WtSlot } from "./wondrous-tails.ts";
 
 export interface MeCharacter {
@@ -39,7 +40,7 @@ export interface OverviewResponse {
   characters: OverviewCharacter[];
 }
 
-/** GET /api/v1/owners/:ownerId/items is `OwnerItems`. GET /api/v1/icons/:iconId is image/png. */
+/** GET /api/v1/owners/:ownerId/items is `OwnerItems`; /also-in is `AlsoInResponse`. GET /api/v1/items/in-common is `ItemsInCommonResponse`. GET /api/v1/icons/:iconId is image/png. */
 
 /** Every error response. */
 export interface ErrorResponse {
