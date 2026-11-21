@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import type { BookStatus, CommonDuty, WondrousTailsResponse, WtBook, WtSlot } from "../../../src/api-types.ts";
+import { useMemo } from "react";
+import type { BookStatus, CommonDuty, WtBook, WtSlot } from "../../../src/api-types.ts";
 import { commonDuties, isActive } from "../../../src/wondrous-tails.ts";
-import { api, errorMessage, Unauthorized } from "../api.ts";
+import { api } from "../api.ts";
 import { ago } from "../format.ts";
-import { usePersistentState } from "../hooks.ts";
+import { useApi, usePartySelection } from "../hooks.ts";
 import { ItemIcon } from "./ItemIcon.tsx";
+import { PartyPicker } from "./PartyPicker.tsx";
 import ui from "./ui.module.css";
 import styles from "./WondrousTailsView.module.css";
-
-type State = { status: "loading" } | { status: "done"; data: WondrousTailsResponse } | { status: "error"; message: string };
 
 const STATUS: Record<BookStatus, { label: string; tone: "good" | "warn" | "bad" | "muted" }> = {
   current: { label: "This week's journal", tone: "good" },
@@ -21,31 +20,15 @@ const STATUS: Record<BookStatus, { label: string; tone: "good" | "warn" | "bad" 
 
 const dateTime = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-export function WondrousTailsView({ onUnauthorized }: { onUnauthorized: () => void }) {
-  const [state, setState] = useState<State>({ status: "loading" });
-  // null = never chosen: default to everyone with an active journal.
-  const [savedParty, setSavedParty] = usePersistentState<number[] | null>("fchub.wt.party", () => null);
+export function WondrousTailsView() {
+  const state = useApi((signal) => api.wondrousTails(signal), []);
 
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .wondrousTails()
-      .then((data) => !cancelled && setState({ status: "done", data }))
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        if (error instanceof Unauthorized) return onUnauthorized();
-        setState({ status: "error", message: `Couldn't load: ${errorMessage(error)}` });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [onUnauthorized]);
-
-  const books = state.status === "done" ? state.data.books : [];
-  const party = useMemo(() => {
-    if (savedParty !== null) return new Set(savedParty.filter((id) => books.some((b) => b.memberId === id)));
-    return new Set(books.filter((b) => isActive(b.status)).map((b) => b.memberId));
-  }, [savedParty, books]);
+  const books = useMemo(() => (state.status === "done" ? state.data.books : []), [state]);
+  const memberIds = useMemo(() => books.map((b) => b.memberId), [books]);
+  // Until someone picks, the party is everyone with an active journal.
+  const { party, toggle } = usePartySelection("fchub.wt.party", memberIds, () =>
+    books.filter((b) => isActive(b.status)).map((b) => b.memberId),
+  );
   const common = useMemo(() => commonDuties(books, party), [books, party]);
   // Highlight only what's worth running together: open for two or more of the party.
   const together = useMemo(() => new Set(common.filter((d) => d.needs.length >= 2).map((d) => d.orderId)), [common]);
@@ -65,12 +48,6 @@ export function WondrousTailsView({ onUnauthorized }: { onUnauthorized: () => vo
   if (state.status === "error") return <p className={ui.error}>{state.message}</p>;
 
   const { lastReset, nextReset } = state.data;
-  const toggle = (memberId: number) => {
-    const next = new Set(party);
-    if (next.has(memberId)) next.delete(memberId);
-    else next.add(memberId);
-    setSavedParty([...next]);
-  };
   const activeInParty = books.filter((b) => party.has(b.memberId) && isActive(b.status)).length;
 
   return (
@@ -80,22 +57,18 @@ export function WondrousTailsView({ onUnauthorized }: { onUnauthorized: () => vo
         <span title={dateTime.format(new Date(nextReset))}>{ago(nextReset)}</span>
       </p>
 
-      <div className={ui.party} role="group" aria-label="Party members">
-        <span className={ui.partyLabel}>Party</span>
-        {books.map((b) => (
-          <button
-            key={b.memberId}
-            type="button"
-            className={ui.chip}
-            aria-pressed={party.has(b.memberId)}
-            onClick={() => toggle(b.memberId)}
-            title={STATUS[b.status].label}
-          >
-            <span className={`${styles.dot} ${styles[STATUS[b.status].tone]}`} aria-hidden="true" />
-            {b.member}
-          </button>
-        ))}
-      </div>
+      <PartyPicker
+        label="Party"
+        ariaLabel="Party members"
+        options={books.map((b) => ({
+          key: b.memberId,
+          label: b.member,
+          title: STATUS[b.status].label,
+          marker: <span className={`${styles.dot} ${styles[STATUS[b.status].tone]}`} aria-hidden="true" />,
+        }))}
+        selected={party}
+        onToggle={toggle}
+      />
 
       <CommonDuties duties={common} activeInParty={activeInParty} />
 
