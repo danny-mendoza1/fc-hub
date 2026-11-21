@@ -6,6 +6,7 @@ import {
   isAdmin,
   memberForKey,
   publicMember,
+  rotateMemberKey,
   sessionCookie,
 } from "./auth.ts";
 import { validateUpload } from "./contract.ts";
@@ -281,6 +282,16 @@ route("POST", "/api/v1/admin/members", { access: "admin", writes: "admin" }, asy
   const { member, apiKey } = await createMember(db, displayName);
   // The key is only ever returned here; the server stores its hash.
   return json({ member, apiKey }, 201);
+});
+
+/**
+ * A leaked or lost key: issue a new one for the same member (characters stay theirs), and the old
+ * key stops working immediately. The new key is only ever returned here.
+ */
+route("POST", "/api/v1/admin/members/:id/rotate-key", { access: "admin", writes: "admin" }, async ({ db, params }) => {
+  const apiKey = await rotateMemberKey(db, Number(params.id));
+  if (!apiKey) throw new HttpError(404, "not_found", "No active member with that id");
+  return json({ memberId: Number(params.id), apiKey });
 });
 
 route("POST", "/api/v1/admin/members/:id/revoke", { access: "admin", writes: "admin" }, async ({ db, params, now }) => {

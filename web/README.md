@@ -50,6 +50,15 @@ curl -X POST https://fc-hub.<you>.workers.dev/api/v1/admin/members \
   -d '{"displayName":"Danny"}'
 ```
 
+If a key leaks or is lost, rotate it rather than revoking it: the member keeps their characters, the old key stops working at once, and the new key is shown **once**. They paste it into `/fchub config` and sign in on the website again.
+
+```bash
+curl -X POST https://fc-hub.<you>.workers.dev/api/v1/admin/members/<id>/rotate-key \
+  -H "authorization: Bearer <ADMIN_TOKEN>"
+```
+
+Member ids are in `GET /api/v1/admin/usage`. Revoke (`…/revoke`) is for someone leaving the FC.
+
 ## API
 
 All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`, `owners/:id/items`, `owners/:id/also-in`, `items/in-common`, `icons/:id`, `wondrous-tails`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
@@ -72,6 +81,7 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `GET` | `/api/v1/wondrous-tails` | Every member's journal with this week's status; "in common" is computed in the browser |
 | `POST` | `/api/v1/admin/members` | Create a member, returns their key once (admin token) |
 | `POST` | `/api/v1/admin/members/:id/revoke` | Revoke a member's key (admin token) |
+| `POST` | `/api/v1/admin/members/:id/rotate-key` | Give a member a new key (returned once); the old key stops working, characters stay theirs (admin token) |
 | `GET` | `/api/v1/admin/usage` | Today's rows written per member against the budgets, and the limits in force (admin token) |
 | `PUT` | `/api/v1/admin/members/:id/write-budget` | Override one member's daily write budget, optionally until a time (admin token) |
 

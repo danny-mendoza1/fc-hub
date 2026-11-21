@@ -105,6 +105,20 @@ export async function isAdmin(request: Request, adminToken: string | undefined):
   return diff === 0;
 }
 
+/**
+ * Gives an active member a new key and invalidates the old one at once. The member row stays the
+ * same, so their characters, retainers and history stay theirs (revoking and re-creating would
+ * leave their characters registered to the old member). Returns null if there's no such active member.
+ */
+export async function rotateMemberKey(db: SqlDatabase, memberId: number): Promise<string | null> {
+  const apiKey = generateApiKey();
+  const result = await db
+    .prepare("UPDATE members SET key_hash = ? WHERE id = ? AND revoked_at IS NULL")
+    .bind(await hashKey(apiKey), memberId)
+    .run();
+  return result.meta.changes > 0 ? apiKey : null;
+}
+
 export async function createMember(db: SqlDatabase, displayName: string): Promise<{ member: Member; apiKey: string }> {
   const apiKey = generateApiKey();
   const result = await db
