@@ -209,7 +209,9 @@ describe("static UI (built client)", needsBuild, () => {
     const file = readFileSync(join(DIST, "_headers"), "utf8");
     assert.equal(file, staticHeadersFile(), "rebuild: npm run build");
     assert.ok(file.includes(`content-security-policy: ${CONTENT_SECURITY_POLICY}`));
-    // The Worker must still run for the API, or API responses would lose auth and no-store.
+    // The Worker must still run for the API, or API responses would lose auth and no-store. And
+    // only for the API: the Worker is pinned near D1 ([placement]), so anything else routed through
+    // it (e.g. `run_worker_first = true`) would send every page and asset across the country.
     const wrangler = readFileSync(join(import.meta.dirname, "..", "wrangler.toml"), "utf8");
     assert.match(wrangler, /^run_worker_first = \["\/api\/\*", "\/healthz"\]$/m);
     // Like Cloudflare's asset server, the Node server doesn't serve the config file.
