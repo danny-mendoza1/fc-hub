@@ -8,6 +8,7 @@
  * last-known contents.
  */
 import { DEFAULT_LIMITS, type Limits } from "./limits.ts";
+import { type Validation, Validator } from "./validation.ts";
 
 export const SCHEMA_VERSION = 2;
 
@@ -52,18 +53,14 @@ export interface Upload {
   owners: UploadOwner[];
 }
 
-/** Max length of any text field (names, locations). */
-export const TEXT_MAX = 200;
-
 /** The upload-shape limits from limits.ts (overridable there, not here). */
 export type UploadLimits = Pick<Limits, "ownersPerUpload" | "sectionsPerOwner" | "itemsPerSection" | "itemsPerUpload">;
 
-export type Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
 
 /** Strict structural validation; unknown fields are ignored, wrong types are errors. */
 export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LIMITS): Validation<Upload> {
-  const errors: string[] = [];
-  const v = new Validator(errors);
+  const v = new Validator();
+  const errors = v.errors;
 
   const root = v.object(input, "body");
   if (!root) return { ok: false, errors };
@@ -88,8 +85,7 @@ export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LI
     const path = `owners[${o}]`;
     const owner = v.object(ownerIn, path);
     if (!owner) return undefined;
-    const kind = v.text(owner.kind, `${path}.kind`);
-    if (kind !== undefined && !(OWNER_KINDS as readonly string[]).includes(kind)) errors.push(`${path}.kind is invalid`);
+    const kind = v.oneOf(owner.kind, `${path}.kind`, OWNER_KINDS);
 
     const sections = v.array(owner.sections, `${path}.sections`, limits.sectionsPerOwner)?.map((sectionIn, s) => {
       const spath = `${path}.sections[${s}]`;
@@ -144,60 +140,4 @@ export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LI
       owners: owners as UploadOwner[],
     },
   };
-}
-
-class Validator {
-  private readonly errors: string[];
-
-  constructor(errors: string[]) {
-    this.errors = errors;
-  }
-
-  object(value: unknown, path: string): Record<string, unknown> | undefined {
-    if (typeof value === "object" && value !== null && !Array.isArray(value)) return value as Record<string, unknown>;
-    this.errors.push(`${path} must be an object`);
-    return undefined;
-  }
-
-  array(value: unknown, path: string, max: number): unknown[] | undefined {
-    if (!Array.isArray(value)) {
-      this.errors.push(`${path} must be an array`);
-      return undefined;
-    }
-    if (value.length > max) {
-      this.errors.push(`${path} has more than ${max} entries`);
-      return undefined;
-    }
-    return value;
-  }
-
-  text(value: unknown, path: string, allowEmpty = false): string | undefined {
-    if (typeof value === "string" && value.length <= TEXT_MAX && (allowEmpty || value.length > 0)) return value;
-    this.errors.push(`${path} must be a ${allowEmpty ? "" : "non-empty "}string of at most ${TEXT_MAX} characters`);
-    return undefined;
-  }
-
-  optionalText(value: unknown, path: string): string | null | undefined {
-    if (value === null || value === undefined) return null;
-    return this.text(value, path, true);
-  }
-
-  int(value: unknown, path: string): number | undefined {
-    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
-    this.errors.push(`${path} must be a non-negative integer`);
-    return undefined;
-  }
-
-  bool(value: unknown, path: string): boolean | undefined {
-    if (typeof value === "boolean") return value;
-    this.errors.push(`${path} must be a boolean`);
-    return undefined;
-  }
-
-  /** 64-bit game ids travel as decimal strings (they exceed JS's safe integer range). */
-  id(value: unknown, path: string): string | undefined {
-    if (typeof value === "string" && /^[1-9][0-9]{0,19}$/.test(value)) return value;
-    this.errors.push(`${path} must be a decimal id string`);
-    return undefined;
-  }
 }
