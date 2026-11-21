@@ -3,7 +3,7 @@
 .jump { color: var(--blue); font-size: .875rem; text-underline-offset: .2em; }
 .intro, .pager { color: var(--muted); font-size: .875rem; }
 .tools { display: grid; grid-template-columns: minmax(12rem, 1fr) auto auto; align-items: end; gap: .65rem; margin: 1rem 0; }
-.tools label { display: grid; gap: .35rem; color: var(--muted); font-size: .8rem; }
+.field { display: grid; gap: .35rem; color: var(--muted); font-size: .8rem; }
 .tools input, .tools select { height: 2.7rem; width: 100%; font: inherit; font-size: .95rem; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text); padding: .4rem .65rem; }
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
 .pager { align-items: center; margin-top: 1rem; }
@@ -12,6 +12,6 @@
 .pager button:disabled { opacity: .45; cursor: default; }
 @media (max-width: 700px) {
   .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tools label:first-child { grid-column: 1 / -1; }
+  .field:first-child { grid-column: 1 / -1; }
   .grid { grid-template-columns: 1fr; }
 }

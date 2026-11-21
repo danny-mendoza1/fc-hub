@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CommonItem } from "../../../src/api-types.ts";
-import { commonItems, itemKey } from "../../../src/item-overlap.ts";
+import { commonItems, isSharedStorage, itemKey } from "../../../src/item-overlap.ts";
 import { api } from "../api.ts";
 import { numberFormat, placeWhere, SECTION_LABELS } from "../format.ts";
 import { useApi, usePartySelection } from "../hooks.ts";
@@ -17,7 +17,7 @@ function searchText(item: CommonItem) {
     fields.push(holder.label);
     for (const place of holder.places) {
       fields.push(placeWhere(place), SECTION_LABELS[place.section] ?? place.section, place.ownerName ?? "");
-      if (holder.key.startsWith("member:")) fields.push(place.character);
+      if (!isSharedStorage(place.ownerKind)) fields.push(place.character);
     }
   }
   return fields.join(" ").toLowerCase();
@@ -81,9 +81,10 @@ export function ItemsInCommon() {
           ) : (
             <>
               <div className={styles.tools}>
-                <label>
-                  Filter items in common
+                <div className={styles.field}>
+                  <label htmlFor="common-filter">Filter items in common</label>
                   <input
+                    id="common-filter"
                     type="search"
                     placeholder="Item, ID, holder or location"
                     value={filter}
@@ -92,10 +93,11 @@ export function ItemsInCommon() {
                       setPage(0);
                     }}
                   />
-                </label>
-                <label>
-                  Quality
+                </div>
+                <div className={styles.field}>
+                  <label htmlFor="common-quality">Quality</label>
                   <select
+                    id="common-quality"
                     value={quality}
                     onChange={(e) => {
                       setQuality(e.target.value);
@@ -106,10 +108,11 @@ export function ItemsInCommon() {
                     <option value="hq">High quality</option>
                     <option value="nq">Normal quality</option>
                   </select>
-                </label>
-                <label>
-                  Sort by
+                </div>
+                <div className={styles.field}>
+                  <label htmlFor="common-order">Sort by</label>
                   <select
+                    id="common-order"
                     value={order}
                     onChange={(e) => {
                       setOrder(e.target.value);
@@ -120,7 +123,7 @@ export function ItemsInCommon() {
                     <option value="quantity">Total quantity</option>
                     <option value="name">Item name</option>
                   </select>
-                </label>
+                </div>
               </div>
               {matches.length > 0 && (
                 <ul className={styles.grid}>
