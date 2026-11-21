@@ -5,8 +5,8 @@ import {
   createMember,
   isAdmin,
   memberForKey,
-  rotateMemberKey,
   publicMember,
+  rotateMemberKey,
   sessionCookie,
 } from "./auth.ts";
 import { validateUpload } from "./contract.ts";

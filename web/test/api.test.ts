@@ -72,7 +72,10 @@ describe("members", () => {
     const me = await call(env, "GET", "/api/v1/me", { token: rotated.body.apiKey });
     assert.deepEqual([me.body.member.displayName, me.body.characters.map((c: { name: string }) => c.name)], ["Danny", ["Alice Example"]]);
     // Same member, so the character is still theirs to upload.
-    const again = await call(env, "POST", "/api/v1/snapshots", { token: rotated.body.apiKey, body: { ...body, capturedAt: new Date().toISOString() } });
+    const again = await call(env, "POST", "/api/v1/snapshots", {
+      token: rotated.body.apiKey,
+      body: { ...body, capturedAt: new Date().toISOString() },
+    });
     assert.equal(again.status, 200);
   });
 
