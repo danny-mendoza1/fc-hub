@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, test } from "node:test";
 import type { UploadItem } from "../src/contract.ts";
+import { DEFAULT_LIMITS } from "../src/limits.ts";
 import { ALICE, addMember, call, createEnv, FC, item, upload } from "./helpers.ts";
 import { preflightSql } from "./preflight.ts";
 
@@ -22,6 +23,9 @@ function rows(env: Env, ownerId: string, section: string): StoredRow[] {
 }
 
 /** Rows inserted, updated or deleted on this connection so far (SQLite's own counter). */
+
+/** Every upload also upserts one usage_daily row (the daily write budget ledger, ADR 0005). */
+const LEDGER = 1;
 function totalChanges(env: Env): number {
   return Number((env.DB.raw.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
 }
@@ -66,7 +70,7 @@ describe("section ingest writes only what changed", () => {
     const kept = after.filter((r) => before.some((b) => b.rid === r.rid));
     assert.equal(kept.length, 139, "untouched stacks keep their rows");
     // 2 item rows (delete + insert) plus the character, owner and owner_sections upserts.
-    assert.ok(changes <= 5, `expected at most 5 row changes, got ${changes}`);
+    assert.ok(changes <= 5 + LEDGER, `expected at most 6 row changes, got ${changes}`);
   });
 
   test("an identical re-upload writes no item rows", async () => {
@@ -74,7 +78,7 @@ describe("section ingest writes only what changed", () => {
     const before = rows(env, ALICE, "CharacterBags").map((r) => r.rid);
     const changes = await send("CharacterBags", bag());
     assert.deepEqual(rows(env, ALICE, "CharacterBags").map((r) => r.rid), before);
-    assert.ok(changes <= 3, `expected only metadata upserts, got ${changes}`);
+    assert.ok(changes <= 3 + LEDGER, `expected only metadata upserts, got ${changes}`);
   });
 
   test("moving a stack to another slot replaces just that row", async () => {
@@ -83,7 +87,7 @@ describe("section ingest writes only what changed", () => {
     const after = rows(env, ALICE, "CharacterBags");
     assert.equal(after.length, 140);
     assert.ok(after.some((r) => r.item_id === 2000 && r.sorted_slot === 999));
-    assert.ok(changes <= 5, `got ${changes}`);
+    assert.ok(changes <= 5 + LEDGER, `got ${changes}`);
   });
 
   test("identical stacks are counted, not collapsed", async () => {
@@ -94,7 +98,7 @@ describe("section ingest writes only what changed", () => {
 
     const shrink = await send("CharacterBags", potion(2));
     assert.equal(rows(env, ALICE, "CharacterBags").length, 2);
-    assert.ok(shrink <= 4, `removing one of three identical stacks: got ${shrink}`);
+    assert.ok(shrink <= 4 + LEDGER, `removing one of three identical stacks: got ${shrink}`);
 
     await send("CharacterBags", potion(4));
     assert.equal(rows(env, ALICE, "CharacterBags").length, 4);
@@ -123,15 +127,16 @@ describe("section ingest writes only what changed", () => {
   });
 
   test("oversized sections fall back to replace-all and still store everything", async () => {
+    // At the per-section item limit, long names push the packed JSON past MAX_DIFF_JSON_CHARS.
     const longText = "x".repeat(190);
-    const huge = Array.from({ length: 3_000 }, (_, i) => item(i + 1, longText, 1, `${longText}${i}`, { sortedSlot: i }));
+    const huge = Array.from({ length: DEFAULT_LIMITS.itemsPerSection }, (_, i) => item(i + 1, longText, 1, `${longText}${i}`, { sortedSlot: i }));
     await send("HousingInteriorItems", huge, ALICE);
-    assert.equal(rows(env, ALICE, "HousingInteriorItems").length, 3_000);
+    assert.equal(rows(env, ALICE, "HousingInteriorItems").length, DEFAULT_LIMITS.itemsPerSection);
 
     huge[0] = { ...huge[0]!, quantity: 2 };
     await send("HousingInteriorItems", huge, ALICE);
     const after = rows(env, ALICE, "HousingInteriorItems");
-    assert.equal(after.length, 3_000);
+    assert.equal(after.length, DEFAULT_LIMITS.itemsPerSection);
     assert.equal(after.find((r) => r.item_id === 1)?.quantity, 2);
   });
 });

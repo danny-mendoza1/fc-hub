@@ -1,10 +1,13 @@
-import { authenticateMember, clearSessionCookie, createMember, isAdmin, type Member, memberForKey, sessionCookie } from "./auth.ts";
+import { type AuthedMember, authenticateMember, clearSessionCookie, createMember, isAdmin, memberForKey, publicMember, sessionCookie } from "./auth.ts";
 import { validateUpload } from "./contract.ts";
+import { MeteredDatabase, ReadOnlyViolation, readOnly } from "./db/guards.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { IngestError, ingestUpload } from "./ingest.ts";
 import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
 import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
+import { type Limits, resolveLimits } from "./limits.ts";
 import { MAX_QUERY_LENGTH, overview, ownerItems, searchItems } from "./search.ts";
+import { checkWriteBudget, recordWrites, setWriteBudgetOverride, usageReport } from "./usage.ts";
 import { validateWondrousTails } from "./wondrous-tails.ts";
 import { listWondrousTails, saveWondrousTails } from "./wondrous-tails-store.ts";
 
@@ -16,15 +19,52 @@ export interface AppEnv {
   ASSETS?: { fetch(request: Request): Promise<Response> };
   /** Outbound fetch for item icons (tests inject a fake). Defaults to the global fetch. */
   FETCH?: Fetcher;
+  /** Site-wide limit overrides (see limits.ts ENV_NAMES), e.g. LIMIT_MEMBER_DAILY_WRITE_ROWS. */
+  [limit: `LIMIT_${string}`]: string | number | undefined;
+  /** "false" puts the site in read-only mode (all uploads refused). */
+  WRITES_ENABLED?: string | boolean;
 }
 
-/** Decompressed upload size cap; a full snapshot is ~250 KB, so this is generous. */
-export const MAX_BODY_BYTES = 8 * 1024 * 1024;
+// --- routing ------------------------------------------------------------------------------
+//
+// Every route declares who may call it and whether it may write (ADR 0005), and the router
+// enforces both: `writes: "none"` handlers get a database that throws on any write, `metered`
+// handlers are checked against the daily write budget and charged for what they write. A route
+// can't be added without choosing, and GET routes can only choose "none".
 
-type Handler = (request: Request, env: AppEnv, params: Record<string, string>) => Promise<Response>;
+type Method = "GET" | "POST" | "PUT" | "DELETE";
+
+/** public: anyone · member: API key header only · memberOrCookie: key or browser session (reads) · admin: ADMIN_TOKEN */
+type Access = "public" | "member" | "memberOrCookie" | "admin";
+
+type Policy =
+  | { access: Access; writes: "none" }
+  /** Uploads: bearer key only (a cookie can't write), budget-checked and charged to the member. */
+  | { access: "member"; writes: "metered" }
+  /** Admin maintenance: unmetered, ADMIN_TOKEN only. */
+  | { access: "admin"; writes: "admin" };
+
+type PolicyFor<M extends Method> = M extends "GET" ? Extract<Policy, { writes: "none" }> : Policy;
+
+export interface RouteContext {
+  request: Request;
+  /** Everything but the raw database, so a handler can't sidestep its policy. */
+  env: Omit<AppEnv, "DB">;
+  params: Record<string, string>;
+  /** Read-only, metered or plain, as the route's policy says. */
+  db: SqlDatabase;
+  /** Set for member routes (and memberOrCookie routes). */
+  member: AuthedMember | null;
+  limits: Limits;
+  now: Date;
+}
+
+type Handler = (ctx: RouteContext) => Promise<Response>;
 
 interface Route {
-  method: string;
+  method: Method;
+  path: string;
+  policy: Policy;
   pattern: RegExp;
   keys: string[];
   handler: Handler;
@@ -32,7 +72,12 @@ interface Route {
 
 const routes: Route[] = [];
 
-function route(method: string, path: string, handler: Handler): void {
+/** Every route and its policy, for tests that check the policies hold. */
+export function routeTable(): readonly { method: Method; path: string; policy: Policy }[] {
+  return routes.map(({ method, path, policy }) => ({ method, path, policy }));
+}
+
+function route<M extends Method>(method: M, path: string, policy: PolicyFor<M>, handler: Handler): void {
   const keys: string[] = [];
   const pattern = new RegExp(
     "^" + path.replace(/:(\w+)/g, (_match, key: string) => {
@@ -40,7 +85,7 @@ function route(method: string, path: string, handler: Handler): void {
       return "([^/]+)";
     }) + "$",
   );
-  routes.push({ method, pattern, keys, handler });
+  routes.push({ method, path, policy, pattern, keys, handler });
 }
 
 /** Web-standard entry point shared by the Cloudflare Worker and the Node server. */
@@ -58,7 +103,7 @@ async function dispatch(request: Request, env: AppEnv, url: URL): Promise<Respon
       pathMatched = true;
       if (r.method !== request.method) continue;
       const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(match[i + 1] ?? "")]));
-      return await r.handler(request, env, params);
+      return await run(r, request, env, params);
     }
     if (pathMatched) return error(405, "method_not_allowed", "Method not allowed");
 
@@ -68,133 +113,177 @@ async function dispatch(request: Request, env: AppEnv, url: URL): Promise<Respon
     }
     return error(404, "not_found", "Not found");
   } catch (err) {
-    if (err instanceof HttpError) return error(err.status, err.code, err.message, err.details);
+    if (err instanceof HttpError) return error(err.status, err.code, err.message, err.details, err.headers);
     if (err instanceof IngestError) return error(err.status, "rejected", err.message);
-    console.error("Unhandled error", err);
+    // A read route tried to write: a bug, never something the caller did. Fail loudly in logs.
+    if (err instanceof ReadOnlyViolation) console.error("Read-only violation", err);
+    else console.error("Unhandled error", err);
     return error(500, "internal", "Internal server error");
+  }
+}
+
+/** Applies the route's policy: authentication, then the database it's allowed to use. */
+async function run(r: Route, request: Request, env: AppEnv, params: Record<string, string>): Promise<Response> {
+  const { access, writes } = r.policy;
+  const limits = resolveLimits(env);
+  const now = new Date();
+
+  let member: AuthedMember | null = null;
+  if (access === "member" || access === "memberOrCookie") {
+    member = await authenticateMember(env.DB, request, access === "memberOrCookie");
+    if (!member) throw new HttpError(401, "unauthorized", "Missing or invalid API key");
+  } else if (access === "admin" && !(await isAdmin(request, env.ADMIN_TOKEN))) {
+    throw new HttpError(401, "unauthorized", "Admin token required");
+  }
+
+  const { DB: _rawDb, ...envWithoutDb } = env;
+  const ctx = { request, env: envWithoutDb, params, member, limits, now };
+  if (writes === "none") return r.handler({ ...ctx, db: readOnly(env.DB) });
+  if (writes === "admin") return r.handler({ ...ctx, db: env.DB });
+
+  // writes === "metered": refuse once today's budget is spent, then charge what this request wrote.
+  const budget = await checkWriteBudget(env.DB, member!, limits, now);
+  if (!budget.ok) {
+    throw new HttpError(budget.reason === "disabled" ? 503 : 429, "write_budget", budget.message, { reason: budget.reason }, {
+      "retry-after": String(budget.retryAfterSeconds),
+    });
+  }
+  const metered = new MeteredDatabase(env.DB);
+  try {
+    return await r.handler({ ...ctx, db: metered });
+  } finally {
+    await recordWrites(env.DB, member!.id, metered.rowsWritten, now);
   }
 }
 
 // --- routes -------------------------------------------------------------------------------
 
-route("GET", "/healthz", async () => json({ ok: true }));
+route("GET", "/healthz", { access: "public", writes: "none" }, async () => json({ ok: true }));
 
 /** Lets the plugin's "Test connection" button confirm its key works. */
-route("GET", "/api/v1/me", async (request, env) => {
-  const member = await requireMember(request, env, true);
-  const characters = await env.DB.prepare(
-    `SELECT content_id AS contentId, name, home_world AS homeWorld, last_upload_at AS lastUploadAt
-     FROM characters WHERE member_id = ? ORDER BY name`,
-  )
-    .bind(member.id)
+route("GET", "/api/v1/me", { access: "memberOrCookie", writes: "none" }, async ({ db, member }) => {
+  const characters = await db
+    .prepare(
+      `SELECT content_id AS contentId, name, home_world AS homeWorld, last_upload_at AS lastUploadAt
+       FROM characters WHERE member_id = ? ORDER BY name`,
+    )
+    .bind(member!.id)
     .all();
-  return json({ member, characters: characters.results });
+  return json({ member: publicMember(member!), characters: characters.results });
 });
 
-route("POST", "/api/v1/snapshots", async (request, env) => {
-  const member = await requireMember(request, env);
-  const body = await readJson(request);
-  const validation = validateUpload(body);
+route("POST", "/api/v1/snapshots", { access: "member", writes: "metered" }, async ({ request, db, member, limits, now }) => {
+  const validation = validateUpload(await readJson(request, limits.maxBodyBytes), limits);
   if (!validation.ok) throw new HttpError(422, "invalid_upload", "Upload failed validation", validation.errors);
-  const result = await ingestUpload(env.DB, member, validation.value);
-  return json(result);
+  return json(await ingestUpload(db, member!, validation.value, limits, now));
 });
 
-route("GET", "/api/v1/search", async (request, env) => {
-  await requireMember(request, env, true);
+route("GET", "/api/v1/search", { access: "memberOrCookie", writes: "none" }, async ({ request, db }) => {
   const q = new URL(request.url).searchParams.get("q") ?? "";
   if (q.length > MAX_QUERY_LENGTH) throw new HttpError(400, "query_too_long", `Search is limited to ${MAX_QUERY_LENGTH} characters`);
-  return json(await searchItems(env.DB, q));
+  return json(await searchItems(db, q));
 });
 
-route("GET", "/api/v1/overview", async (request, env) => {
-  await requireMember(request, env, true);
-  return json({ characters: await overview(env.DB) });
-});
+route("GET", "/api/v1/overview", { access: "memberOrCookie", writes: "none" }, async ({ db }) =>
+  json({ characters: await overview(db) }),
+);
 
 /** The plugin's Wondrous Tails upload (one journal per member; bearer key only). */
-route("POST", "/api/v1/wondrous-tails", async (request, env) => {
-  const member = await requireMember(request, env);
-  const validation = validateWondrousTails(await readJson(request));
+route("POST", "/api/v1/wondrous-tails", { access: "member", writes: "metered" }, async ({ request, db, member, limits, now }) => {
+  const validation = validateWondrousTails(await readJson(request, limits.maxBodyBytes));
   if (!validation.ok) throw new HttpError(422, "invalid_upload", "Upload failed validation", validation.errors);
-  return json(await saveWondrousTails(env.DB, member, validation.value));
+  return json(await saveWondrousTails(db, member!, validation.value, now));
 });
 
 /** Every member's journal with its status this week; "in common" is computed in the browser. */
-route("GET", "/api/v1/wondrous-tails", async (request, env) => {
-  await requireMember(request, env, true);
-  return json(await listWondrousTails(env.DB));
-});
+route("GET", "/api/v1/wondrous-tails", { access: "memberOrCookie", writes: "none" }, async ({ db, now }) =>
+  json(await listWondrousTails(db, now)),
+);
 
 /** One owner's items by section, for the "Who's uploaded" accordions (loaded on expand). */
-route("GET", "/api/v1/owners/:ownerId/items", async (request, env, params) => {
-  await requireMember(request, env, true);
-  const ownerId = params.ownerId ?? "";
-  if (!/^[1-9][0-9]{0,19}$/.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
-  const result = await ownerItems(env.DB, ownerId);
+route("GET", "/api/v1/owners/:ownerId/items", { access: "memberOrCookie", writes: "none" }, async ({ db, params }) => {
+  const result = await ownerItems(db, ownerIdParam(params));
   if (!result) throw new HttpError(404, "not_found", "No such owner");
   return json(result);
 });
 
 /** Where else each of this owner's items is stored ("Also in" under the drill-down). */
-route("GET", "/api/v1/owners/:ownerId/also-in", async (request, env, params) => {
-  await requireMember(request, env, true);
-  const ownerId = params.ownerId ?? "";
-  if (!/^[1-9][0-9]{0,19}$/.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
-  return json(await alsoIn(env.DB, ownerId));
-});
+route("GET", "/api/v1/owners/:ownerId/also-in", { access: "memberOrCookie", writes: "none" }, async ({ db, params }) =>
+  json(await alsoIn(db, ownerIdParam(params))),
+);
 
 /** Items that two or more members (or the FC chest) store; the chosen party is applied in the browser. */
-route("GET", "/api/v1/items/in-common", async (request, env) => {
-  await requireMember(request, env, true);
-  return json(await itemsInCommon(env.DB));
-});
+route("GET", "/api/v1/items/in-common", { access: "memberOrCookie", writes: "none" }, async ({ db }) => json(await itemsInCommon(db)));
 
 /** Item icon by game icon id, proxied from XIVAPI (see icons.ts). Members only, so it isn't a public proxy. */
-route("GET", "/api/v1/icons/:iconId", async (request, env, params) => {
-  await requireMember(request, env, true);
+route("GET", "/api/v1/icons/:iconId", { access: "memberOrCookie", writes: "none" }, async ({ env, params }) => {
   const iconId = params.iconId ?? "";
   if (!ICON_ID_PATTERN.test(iconId)) throw new HttpError(400, "invalid_icon", "iconId must be a positive number");
   return fetchIcon(Number(iconId), env.FETCH ?? ((input, init) => fetch(input, init)));
 });
 
-/** Browser sign-in: trade the member's API key for an HttpOnly session cookie. */
-route("POST", "/api/v1/session", async (request, env) => {
+/** Browser sign-in: trade the member's API key for an HttpOnly session cookie. Reads only. */
+route("POST", "/api/v1/session", { access: "public", writes: "none" }, async ({ request, db }) => {
   assertSameOrigin(request);
-  const body = (await readJson(request)) as { apiKey?: unknown };
-  const member = await memberForKey(env.DB, typeof body?.apiKey === "string" ? body.apiKey.trim() : null);
-  if (!member) throw new HttpError(401, "unauthorized", "That key isn't valid (or has been revoked).");
-  const response = json({ member });
-  response.headers.append("set-cookie", sessionCookie((body.apiKey as string).trim()));
+  const body = (await readJson(request, 4096)) as { apiKey?: unknown };
+  const apiKey = typeof body?.apiKey === "string" ? body.apiKey.trim() : null;
+  const member = await memberForKey(db, apiKey);
+  if (!member || !apiKey) throw new HttpError(401, "unauthorized", "That key isn't valid (or has been revoked).");
+  const response = json({ member: publicMember(member) });
+  response.headers.append("set-cookie", sessionCookie(apiKey));
   return response;
 });
 
-route("DELETE", "/api/v1/session", async (request) => {
+route("DELETE", "/api/v1/session", { access: "public", writes: "none" }, async ({ request }) => {
   assertSameOrigin(request);
   const response = new Response(null, { status: 204 });
   response.headers.append("set-cookie", clearSessionCookie());
   return response;
 });
 
-route("POST", "/api/v1/admin/members", async (request, env) => {
-  await requireAdmin(request, env);
-  const body = (await readJson(request)) as { displayName?: unknown };
+route("POST", "/api/v1/admin/members", { access: "admin", writes: "admin" }, async ({ request, db }) => {
+  const body = (await readJson(request, 4096)) as { displayName?: unknown };
   const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
   if (displayName.length === 0 || displayName.length > 64) {
     throw new HttpError(422, "invalid_member", "displayName must be 1-64 characters");
   }
-  const { member, apiKey } = await createMember(env.DB, displayName);
+  const { member, apiKey } = await createMember(db, displayName);
   // The key is only ever returned here; the server stores its hash.
   return json({ member, apiKey }, 201);
 });
 
-route("POST", "/api/v1/admin/members/:id/revoke", async (request, env, params) => {
-  await requireAdmin(request, env);
-  const result = await env.DB.prepare("UPDATE members SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
-    .bind(new Date().toISOString(), Number(params.id))
+route("POST", "/api/v1/admin/members/:id/revoke", { access: "admin", writes: "admin" }, async ({ db, params, now }) => {
+  const result = await db
+    .prepare("UPDATE members SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+    .bind(now.toISOString(), Number(params.id))
     .run();
   if (result.meta.changes === 0) throw new HttpError(404, "not_found", "No active member with that id");
   return json({ revoked: Number(params.id) });
+});
+
+/** Today's D1 rows written per member against the budgets, and the limits in force. */
+route("GET", "/api/v1/admin/usage", { access: "admin", writes: "none" }, async ({ db, limits, now }) =>
+  json(await usageReport(db, limits, now)),
+);
+
+/**
+ * Raise or lower one member's daily write budget without a deploy:
+ * `{"dailyWriteRows": 2000000, "until": "2026-11-23T00:00:00Z"}`; `until` omitted = until cleared;
+ * `{"dailyWriteRows": null}` clears it.
+ */
+route("PUT", "/api/v1/admin/members/:id/write-budget", { access: "admin", writes: "admin" }, async ({ request, db, params }) => {
+  const body = (await readJson(request, 4096)) as { dailyWriteRows?: unknown; until?: unknown };
+  const rows = body?.dailyWriteRows;
+  if (rows !== null && !(typeof rows === "number" && Number.isSafeInteger(rows) && rows >= 0)) {
+    throw new HttpError(422, "invalid_budget", "dailyWriteRows must be a whole number ≥ 0, or null to clear");
+  }
+  const until = body?.until ?? null;
+  if (until !== null && (typeof until !== "string" || Number.isNaN(Date.parse(until)))) {
+    throw new HttpError(422, "invalid_budget", "until must be an ISO timestamp, or omitted");
+  }
+  const untilIso = until === null ? null : new Date(Date.parse(until)).toISOString();
+  if (!(await setWriteBudgetOverride(db, Number(params.id), rows, untilIso))) throw new HttpError(404, "not_found", "No member with that id");
+  return json({ memberId: Number(params.id), dailyWriteRows: rows, until: rows === null ? null : untilIso });
 });
 
 // --- helpers ------------------------------------------------------------------------------
@@ -203,18 +292,21 @@ export class HttpError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details?: unknown;
-  constructor(status: number, code: string, message: string, details?: unknown) {
+  readonly headers?: Record<string, string>;
+  constructor(status: number, code: string, message: string, details?: unknown, headers?: Record<string, string>) {
     super(message);
     this.status = status;
     this.code = code;
     this.details = details;
+    this.headers = headers;
   }
 }
 
-async function requireMember(request: Request, env: AppEnv, allowCookie = false): Promise<Member> {
-  const member = await authenticateMember(env.DB, request, allowCookie);
-  if (!member) throw new HttpError(401, "unauthorized", "Missing or invalid API key");
-  return member;
+/** 64-bit game ids travel as decimal strings. */
+function ownerIdParam(params: Record<string, string>): string {
+  const ownerId = params.ownerId ?? "";
+  if (!/^[1-9][0-9]{0,19}$/.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
+  return ownerId;
 }
 
 /** Rejects browser requests coming from another site (defence in depth on top of SameSite). */
@@ -225,12 +317,8 @@ function assertSameOrigin(request: Request): void {
   }
 }
 
-async function requireAdmin(request: Request, env: AppEnv): Promise<void> {
-  if (!(await isAdmin(request, env.ADMIN_TOKEN))) throw new HttpError(401, "unauthorized", "Admin token required");
-}
-
 /** Reads a JSON body, transparently un-gzipping it, with a hard cap on decompressed size. */
-async function readJson(request: Request): Promise<unknown> {
+async function readJson(request: Request, maxBytes: number): Promise<unknown> {
   if (!request.body) throw new HttpError(400, "empty_body", "Request body is required");
 
   const encoding = request.headers.get("content-encoding")?.toLowerCase();
@@ -246,7 +334,7 @@ async function readJson(request: Request): Promise<unknown> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_BODY_BYTES) {
+    if (total > maxBytes) {
       await reader.cancel();
       throw new HttpError(413, "too_large", "Request body too large");
     }
@@ -274,8 +362,10 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-function error(status: number, code: string, message: string, details?: unknown): Response {
-  return json({ error: { code, message, ...(details === undefined ? {} : { details }) } }, status);
+function error(status: number, code: string, message: string, details?: unknown, headers?: Record<string, string>): Response {
+  const response = json({ error: { code, message, ...(details === undefined ? {} : { details }) } }, status);
+  for (const [name, value] of Object.entries(headers ?? {})) response.headers.set(name, value);
+  return response;
 }
 
 /**

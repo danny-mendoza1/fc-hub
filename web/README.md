@@ -61,17 +61,19 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `DELETE` | `/api/v1/session` | Sign out |
 | `GET` | `/healthz` | Liveness |
 | `GET` | `/api/v1/me` | The key's member and their characters (plugin "Test connection") |
-| `POST` | `/api/v1/snapshots` | Upload changed sections (JSON, optionally `Content-Encoding: gzip`, ≤ 8 MB decompressed) |
+| `POST` | `/api/v1/snapshots` | Upload changed sections (JSON, optionally `Content-Encoding: gzip`, ≤ 4 MB decompressed); counts against the daily write budget |
 | `GET` | `/api/v1/search?q=` | Items by name substring or exact item id, grouped item → owner → locations |
 | `GET` | `/api/v1/overview` | Every character's owners and per-section freshness |
 | `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Who's uploaded" accordions) |
 | `GET` | `/api/v1/owners/:ownerId/also-in` | Every storage place of each item (+HQ) this owner holds (the "Also in" lines) |
 | `GET` | `/api/v1/items/in-common` | Holders (members, FC chest, houses) and the items two or more of them store; the party is chosen in the browser |
 | `GET` | `/api/v1/icons/:iconId` | Item icon PNG, proxied from XIVAPI (see below) |
-| `POST` | `/api/v1/wondrous-tails` | Plugin upload of the member's Wondrous Tails journal (bearer key only) |
+| `POST` | `/api/v1/wondrous-tails` | Plugin upload of the member's Wondrous Tails journal (bearer key only); counts against the daily write budget |
 | `GET` | `/api/v1/wondrous-tails` | Every member's journal with this week's status; "in common" is computed in the browser |
 | `POST` | `/api/v1/admin/members` | Create a member, returns their key once (admin token) |
 | `POST` | `/api/v1/admin/members/:id/revoke` | Revoke a member's key (admin token) |
+| `GET` | `/api/v1/admin/usage` | Today's rows written per member against the budgets, and the limits in force (admin token) |
+| `PUT` | `/api/v1/admin/members/:id/write-budget` | Override one member's daily write budget, optionally until a time (admin token) |
 
 ### Upload contract (schema v2)
 
@@ -101,6 +103,30 @@ Merge rules (`src/ingest.ts`):
 - A character belongs to the member whose key first uploaded it. Characters and retainers can only be updated by their own character. The FC chest and houses are shared, and the latest capture wins.
 - 64-bit ids are decimal strings.
 
+## Limits (cost guards)
+
+D1 bills every row written, and Cloudflare's spending limit doesn't cover D1, so the app enforces its own ceiling ([ADR 0005](../docs/adr/0005-cost-guards.md)). Defaults live in `src/limits.ts`:
+
+| Limit | Default | Override variable |
+|---|---|---|
+| Rows written per member per UTC day | 300,000 | `LIMIT_MEMBER_DAILY_WRITE_ROWS` |
+| Rows written per UTC day, whole site | 1,000,000 (≈ 30M/month, under the 50M included) | `LIMIT_SITE_DAILY_WRITE_ROWS` |
+| Upload body (after gzip) | 4 MB | `LIMIT_MAX_BODY_BYTES` |
+| Owners / sections per owner / items per section / items per upload | 24 / 32 / 2,000 / 10,000 | `LIMIT_OWNERS_PER_UPLOAD`, `LIMIT_SECTIONS_PER_OWNER`, `LIMIT_ITEMS_PER_SECTION`, `LIMIT_ITEMS_PER_UPLOAD` |
+| New owners one character may create | 24 | `LIMIT_OWNERS_PER_CHARACTER` |
+| Uploads allowed at all | yes | `WRITES_ENABLED = "false"` (read-only mode) |
+
+- **Change a limit for everyone:** uncomment `[vars]` in `wrangler.toml`, set the value, `npm run deploy`. Values that aren't positive whole numbers are ignored with a warning, so a typo can't switch a guard off.
+- **Change one member's budget, no deploy:**
+  ```bash
+  curl -X PUT https://fc-hub.<you>.workers.dev/api/v1/admin/members/2/write-budget \
+    -H "Authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
+    -d '{"dailyWriteRows":2000000,"until":"2026-11-23T00:00:00Z"}'   # {"dailyWriteRows":null} clears it
+  ```
+- **See today's usage:** `curl https://fc-hub.<you>.workers.dev/api/v1/admin/usage -H "Authorization: Bearer $ADMIN_TOKEN"`.
+- **Over budget:** uploads get `429` (or `503` in read-only mode) with `Retry-After` until 00:00 UTC; the plugin shows the message and waits. Reads are never limited.
+- **Every route declares its policy** in `src/app.ts` (`access`, `writes: "none" | "metered" | "admin"`). `GET` routes can only be `"none"`, and their handlers get a database that throws on any write. `test/cost-guards.test.ts` calls every `GET` route and fails if one writes.
+
 ## Web UI
 
 Sign in with your personal key (the same one the plugin uses). The server stores it in a `__Host-` cookie that is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
@@ -116,7 +142,7 @@ One journal per member. The plugin shares the first character it sees, changeabl
 ## Security notes
 
 - Member keys are 256-bit random values with an `fch_` prefix, stored only as SHA-256 hashes. The admin token is compared in constant time.
-- Upload bodies are size-capped *after* decompression (gzip-bomb safe) and strictly validated.
+- Upload bodies are size-capped *after* decompression (gzip-bomb safe) and strictly validated, and every upload is charged to a daily write budget (see Limits).
 - Browser sessions can only **read**. Uploads and admin actions need the `Authorization` header, which another site can't attach, so the cookie can't be abused for CSRF. Session endpoints also reject foreign `Origin`s.
 - Every response carries a strict Content-Security-Policy (`default-src 'none'`, same-origin scripts/styles only, no inline code, `frame-ancestors 'none'`), plus `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, COOP and (on https) HSTS. API responses are `no-store`.
 - The UI is React, which escapes rendered text; `dangerouslySetInnerHTML` is never used. Vite's build has no inline scripts (a test checks `dist/index.html`), so the CSP needs no `unsafe-inline`.
