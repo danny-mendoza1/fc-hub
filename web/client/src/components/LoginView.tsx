@@ -25,31 +25,33 @@ export function LoginView({ onSignedIn }: { onSignedIn: (member: Member) => void
   }
 
   return (
-    <section className={`${ui.card} ${styles.login}`}>
-      <h2>Sign in</h2>
-      <p className={ui.muted}>Use the same personal key you put in the FC Hub plugin settings.</p>
-      <form className={styles.form} autoComplete="off" onSubmit={submit}>
-        <label className={styles.label} htmlFor="api-key">
-          API key
-        </label>
-        <input
-          id="api-key"
-          type="password"
-          placeholder="fch_…"
-          required
-          spellCheck={false}
-          // biome-ignore lint/a11y/noAutofocus: signing in is the only thing to do on this page.
-          autoFocus
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
-        <button type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-        <p className={ui.error} role="alert">
-          {error}
-        </p>
-      </form>
+    <section className={styles.login}>
+      <div className={styles.content}>
+        <h2>Sign in</h2>
+        <p className={ui.muted}>Use the same personal key you put in the FC Hub plugin settings.</p>
+        <form className={styles.form} autoComplete="off" onSubmit={submit}>
+          <label className={styles.label} htmlFor="api-key">
+            API key
+          </label>
+          <input
+            id="api-key"
+            type="password"
+            placeholder="fch_…"
+            required
+            spellCheck={false}
+            // biome-ignore lint/a11y/noAutofocus: signing in is the only thing to do on this page.
+            autoFocus
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+          <p className={ui.error} role="alert">
+            {error}
+          </p>
+        </form>
+      </div>
     </section>
   );
 }

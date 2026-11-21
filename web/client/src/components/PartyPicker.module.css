@@ -5,5 +5,5 @@
   background: var(--panel); color: var(--muted); border: 1px solid var(--border);
   border-radius: 999px; padding: 6px 14px; font-weight: 500;
 }
-.chip[aria-pressed="true"] { color: var(--text); border-color: var(--gold); background: var(--panel-2); }
-.chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.chip[aria-pressed="true"] { color: var(--text); border-color: var(--selection-border); background: color-mix(in srgb, var(--blue) 10%, var(--panel)); }
+.chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

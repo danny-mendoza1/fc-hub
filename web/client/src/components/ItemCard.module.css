@@ -11,8 +11,8 @@
 .colWhere { width: 32%; }
 .colUpdated { width: 16%; }
 
-.qty { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.locations { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
+.qty { font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.locations { margin: 0; padding: 0; list-style: none; color: var(--text); font-size: 14px; }
 .locations li + li { margin-top: 2px; }
 
 /* Phones: stack each holding as holder + qty, member + age, then the locations (the actual answer). */

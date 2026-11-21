@@ -1,4 +1,5 @@
 import type { Member } from "../../../src/api-types.ts";
+import crest from "../art/fc-crest.png";
 import { VIEWS, type View } from "../views.ts";
 import styles from "./TopBar.module.css";
 import ui from "./ui.module.css";
@@ -14,10 +15,10 @@ export function TopBar({ member, view, onNavigate, onSignOut }: Props) {
   return (
     <header className={styles.topbar}>
       <h1 className={styles.brand}>
-        <span className={styles.brandMark} aria-hidden="true">
-          ◆
-        </span>{" "}
-        FC Hub
+        <img src={crest} width="42" height="42" alt="" />
+        <span>
+          <small>Sea of Stars</small>FC Hub
+        </span>
       </h1>
       {member && (
         <>

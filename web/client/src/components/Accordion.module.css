@@ -6,7 +6,7 @@
 }
 .summary::-webkit-details-marker { display: none; }
 .summary:hover { background: var(--panel-2); }
-.summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .summaryBody { flex: 1; min-width: 0; }
 
@@ -21,7 +21,8 @@
 /* Nested (section) accordions are lighter and indented. */
 .section { border-top-color: color-mix(in srgb, var(--border) 60%, transparent); }
 .section > .summary { padding: 7px 6px; }
-.section > .panel { padding-left: 24px; }
+.section > .panel { padding-left: clamp(6px, 1.4vw, 18px); border-left: 1px solid var(--border); }
+@media (max-width: 700px) { .panel { padding-left: 8px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .chevron { transition: none; }
