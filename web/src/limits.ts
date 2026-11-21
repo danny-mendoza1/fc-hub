@@ -2,7 +2,8 @@
  * Cost guards: every limit that bounds what FC Hub can spend, in one place (ADR 0005).
  *
  * D1 bills rows written (and Cloudflare's spending limit doesn't cover D1), so the daily write
- * budget is the hard cap; the upload limits keep any single request small. Defaults live here.
+ * budget is the main stop: a soft limit that concurrent requests can overshoot by about one upload
+ * each (ADR 0005). The upload limits keep any single request small. Defaults live here.
  * Each one can be overridden site-wide without a code change: a Worker variable in wrangler.toml
  * `[vars]` (or an environment variable on Node), named in ENV_NAMES. A member's daily budget can
  * also be raised or lowered at runtime through the admin API, with an expiry (see web/README.md).
@@ -10,7 +11,7 @@
 export interface Limits {
   /** D1 rows written per member per UTC day, by uploads. Admin overrides replace it per member. */
   memberDailyWriteRows: number;
-  /** D1 rows written per UTC day by everyone together: the stop for the whole bill. */
+  /** D1 rows written per UTC day by everyone together: the stop for the whole bill (soft; see ADR 0005). */
   siteDailyWriteRows: number;
   /** false = read-only mode: every upload is refused (emergency switch). */
   writesEnabled: boolean;

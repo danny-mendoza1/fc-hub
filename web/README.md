@@ -118,7 +118,7 @@ Merge rules (`src/ingest.ts`):
 
 ## Limits (cost guards)
 
-D1 bills every row written, and Cloudflare's spending limit doesn't cover D1, so the app enforces its own ceiling ([ADR 0005](../docs/adr/0005-cost-guards.md)). Defaults live in `src/limits.ts`:
+D1 bills every row written, and Cloudflare's spending limit doesn't cover D1, so the app enforces its own daily budget ([ADR 0005](../docs/adr/0005-cost-guards.md)). It's a soft limit: uploads stop once the day's budget is spent, but uploads already in flight can overshoot it by about one upload each. Defaults live in `src/limits.ts`:
 
 | Limit | Default | Override variable |
 |---|---|---|
