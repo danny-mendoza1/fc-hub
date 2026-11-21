@@ -60,8 +60,16 @@ export function ItemsInCommon() {
       <p className={styles.intro}>
         Compare items kept by at least two selected holders. Equipped gear, market listings and crystals are excluded.
       </p>
-      {state.status === "loading" && <p className={ui.muted}>Loading…</p>}
-      {state.status === "error" && <p className={ui.error}>{state.message}</p>}
+      {state.status === "loading" && (
+        <p role="status" className={ui.muted}>
+          Loading…
+        </p>
+      )}
+      {state.status === "error" && (
+        <p role="alert" className={ui.error}>
+          {state.message}
+        </p>
+      )}
       {state.status === "done" && (
         <>
           <PartyPicker

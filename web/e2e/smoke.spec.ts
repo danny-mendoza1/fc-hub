@@ -38,11 +38,11 @@ test("sign in, search, and sign out", async ({ page }) => {
   expect(errors.filter((e) => !e.includes("401"))).toEqual([]);
 });
 
-test("who's uploaded: drill-down with Also in, and items in common with a remembered party", async ({ page }) => {
+test("Inventories: drill-down with Also in, and items in common with a remembered party", async ({ page }) => {
   // Watch from after sign-in: the signed-out page's session check is an expected 401.
   await signIn(page);
   const errors = watchConsole(page);
-  await page.getByRole("button", { name: "Who's uploaded" }).click();
+  await page.getByRole("button", { name: "Inventories" }).click();
 
   // Retainer drill-down: its only section opens straight away; Iron Ore is also elsewhere.
   await page.locator("summary", { hasText: "Sir-noodle" }).click();
@@ -51,11 +51,15 @@ test("who's uploaded: drill-down with Also in, and items in common with a rememb
   await expect(alsoIn).toContainText("Bob");
 
   const common = page.locator("article", { has: page.getByRole("heading", { name: "Items in common" }) });
-  await expect(common.locator("li", { hasText: "Iron Ore" })).toContainText("3"); // Alice, Bob, FC chest
+  const ore = common.locator("summary").filter({ hasText: "Iron Ore" });
+  await expect(ore).toContainText("FC chest 999");
+  await expect(ore).toContainText("Alice 114"); // inventory + retainer
+  await expect(ore).toContainText("+1 more");
 
-  // Narrow the comparison to Alice alone: nothing to compare, and it's remembered after a reload.
+  // Recalculate the preview for the selected holders, then remember the choice across reloads.
   const chip = (name: string) => common.getByRole("button", { name, exact: true });
   await chip("Bob").click();
+  await expect(ore).not.toContainText("+1 more");
   await chip("FC chest").click();
   await expect(chip("Bob")).toHaveAttribute("aria-pressed", "false");
   await expect(common).toContainText("Pick at least two to compare.");

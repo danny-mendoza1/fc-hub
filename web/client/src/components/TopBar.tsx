@@ -23,7 +23,7 @@ export function TopBar({ member, view, onNavigate, onSignOut }: Props) {
       </h1>
       {member && (
         <>
-          <nav className={styles.tabs}>
+          <nav aria-label="FC Hub views" className={styles.tabs}>
             {VIEWS.map((tab) => (
               <button
                 key={tab.view}

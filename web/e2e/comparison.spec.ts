@@ -20,7 +20,7 @@ test("comparison stays bounded when paging, searching storage, and changing qual
   await page.goto("/");
   await page.getByLabel("API key").fill(process.env.E2E_ALICE_KEY!);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: "Who's uploaded" }).click();
+  await page.getByRole("button", { name: "Inventories" }).click();
 
   const panel = page.locator("article").filter({ has: page.getByRole("heading", { name: "Items in common" }) });
   const cards = panel.locator("summary");

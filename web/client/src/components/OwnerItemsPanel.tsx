@@ -25,8 +25,18 @@ export function OwnerItemsPanel({ ownerId }: { ownerId: string }) {
     [alsoIn],
   );
 
-  if (state.status === "loading") return <p className={ui.muted}>Loading items…</p>;
-  if (state.status === "error") return <p className={ui.error}>{state.message}</p>;
+  if (state.status === "loading")
+    return (
+      <p role="status" className={ui.muted}>
+        Loading items…
+      </p>
+    );
+  if (state.status === "error")
+    return (
+      <p role="alert" className={ui.error}>
+        {state.message}
+      </p>
+    );
 
   const sections = [...state.data.sections].sort(bySectionOrder);
   if (sections.length === 0) return <p className={ui.muted}>Nothing uploaded for this one yet.</p>;

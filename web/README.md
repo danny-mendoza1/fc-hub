@@ -31,6 +31,12 @@ Use `localhost` rather than `127.0.0.1` in the browser so the `Secure` session c
 
 PowerShell: `$env:ADMIN_TOKEN="dev-admin"; npm start`.
 
+## Accessibility
+
+The web client targets [WCAG 2.2 Level AA](https://www.w3.org/TR/WCAG22/). Run `npm run test:e2e` to run the accessibility checks with the other browser tests. They exercise sign-in, populated search, inventory comparisons, and journals at desktop and 320 CSS pixels. axe-core runs in the test browser only.
+
+For UI changes, also check keyboard order and visible focus, zoom to 400% from a 1280px viewport, and try the affected task with a screen reader. Check names and quantities in compact results, selection changes, errors, and expand/collapse announcements. Automated checks cover a subset of the criteria; record manual findings separately.
+
 ## Deploy to Cloudflare (first time)
 
 ```bash
@@ -66,7 +72,7 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/` | Web UI (search + "who's uploaded"), served from the built `dist/` |
+| `GET` | `/` | Web UI (search + "Inventories"), served from the built `dist/` |
 | `POST` | `/api/v1/session` | Browser sign-in: `{"apiKey"}` → HttpOnly cookie holding a 30-day session token (not the key) |
 | `DELETE` | `/api/v1/session` | Sign out (ends the session on the server too) |
 | `GET` | `/healthz` | Liveness |
@@ -74,7 +80,7 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `POST` | `/api/v1/snapshots` | Upload changed sections (JSON, optionally `Content-Encoding: gzip`, ≤ 4 MB decompressed); counts against the daily write budget |
 | `GET` | `/api/v1/search?q=` | Items by name substring or exact item id, grouped item → owner → locations |
 | `GET` | `/api/v1/overview` | Every character's owners and per-section freshness |
-| `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Who's uploaded" accordions) |
+| `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Inventories" accordions) |
 | `GET` | `/api/v1/owners/:ownerId/also-in` | Every storage place of each item (+HQ) this owner holds (the "Also in" lines) |
 | `GET` | `/api/v1/items/in-common` | Holders (members, FC chest, houses) and the items two or more of them store; the party is chosen in the browser |
 | `GET` | `/api/v1/icons/:iconId` | Item icon PNG, proxied from XIVAPI (see below) |
@@ -166,7 +172,7 @@ curl -X DELETE "$URL/owners/<ownerId>" -H "Authorization: Bearer $ADMIN_TOKEN" #
 
 ## Web UI
 
-Sign in with your personal key (the same one the plugin uses). The server checks it and sets a `__Host-` cookie holding a random 30-day **session token**, never the key itself ([ADR 0007](../docs/adr/0007-session-tokens.md)). The cookie is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Signing out, rotating the key or revoking the member ends the session on the server. Pages keep what they loaded in memory: for 30 seconds it's reused as is, and for up to 10 minutes it's shown at once while a fresh copy loads in the background. A tab's data starts loading when the pointer or focus reaches the tab, and the opening tab's loads alongside the sign-in check. Reloading the page always fetches fresh data. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
+Sign in with your personal key (the same one the plugin uses). The server checks it and sets a `__Host-` cookie holding a random 30-day **session token**, never the key itself ([ADR 0007](../docs/adr/0007-session-tokens.md)). The cookie is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Signing out, rotating the key or revoking the member ends the session on the server. Pages keep what they loaded in memory: for 30 seconds it's reused as is, and for up to 10 minutes it's shown at once while a fresh copy loads in the background. A tab's data starts loading when the pointer or focus reaches the tab, and the opening tab's loads alongside the sign-in check. Reloading the page always fetches fresh data. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Inventories** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
 
 ### Wondrous Tails
 

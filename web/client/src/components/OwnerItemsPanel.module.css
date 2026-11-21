@@ -20,7 +20,7 @@
 .alsoInLabel { color: var(--gold); font-weight: 600; margin-right: 2px; }
 .place {
   border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px;
-  color: var(--text); background: var(--panel); white-space: nowrap;
+  color: var(--text); background: var(--panel); max-width: 100%; overflow-wrap: anywhere;
 }
 .placeMember { color: var(--muted); }
 .placeQty { color: var(--muted); font-variant-numeric: tabular-nums; }

@@ -15,10 +15,10 @@
 /* Journals */
 .books { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
 .legend { font-size: 13px; margin: -4px 0 12px; display: flex; align-items: center; gap: 6px; }
-.legendSwatch { width: 14px; height: 14px; border-radius: 4px; border: 2px solid var(--gold); display: inline-block; }
-.book { border-top: 2px solid var(--gold); display: flex; flex-direction: column; gap: 10px; }
+.shared { color: var(--gold); font-weight: 600; font-size: .8rem; }
+.book { min-width: 0; overflow-wrap: anywhere; border-top: 2px solid var(--gold); display: flex; flex-direction: column; gap: 10px; }
 .outOfParty { border-top-color: var(--border); }
-.bookHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.bookHead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .member { margin: 0; font-size: 16px; }
 .meta { font-size: 13px; display: grid; gap: 2px; }
 .staleNote { color: var(--amber); }

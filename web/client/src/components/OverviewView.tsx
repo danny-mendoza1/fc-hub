@@ -21,8 +21,16 @@ export function OverviewView() {
         Open a row to browse its items. Each section shows when it was last captured in game; retainers and the FC chest refresh when
         someone opens them. Something out of date? Type <code>/fchub upload</code> in game to send yours now.
       </p>
-      {state.status === "loading" && <p className={ui.muted}>Loading…</p>}
-      {state.status === "error" && <p className={ui.error}>{state.message}</p>}
+      {state.status === "loading" && (
+        <p role="status" className={ui.muted}>
+          Loading…
+        </p>
+      )}
+      {state.status === "error" && (
+        <p role="alert" className={ui.error}>
+          {state.message}
+        </p>
+      )}
       {state.status === "done" && state.data.characters.length === 0 && (
         <p className={ui.muted}>Nobody has uploaded yet. Turn on uploads in the plugin's settings (/fchub config).</p>
       )}

@@ -16,3 +16,18 @@
   .login::before { content: ""; display: block; aspect-ratio: 5/2; background: url("../art/heimdall.webp") center / cover; }
   .content { padding: 1.4rem; max-width: none; }
 }
+
+/* One sweep along the gold rim when Heimdall's panel appears. */
+@media (prefers-reduced-motion: no-preference) {
+  .login::after {
+    content: ""; position: absolute; inset: 0 auto auto 0; width: 25%; height: 2px;
+    pointer-events: none; opacity: 0;
+    background: linear-gradient(90deg, transparent, var(--gold), var(--text), transparent);
+    animation: starlight 1.1s ease-out 150ms;
+  }
+}
+@keyframes starlight {
+  from { opacity: 0; transform: translateX(-100%); }
+  25%, 70% { opacity: .9; }
+  to { opacity: 0; transform: translateX(400%); }
+}
