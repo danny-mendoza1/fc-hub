@@ -35,8 +35,8 @@ export function ItemsInCommon() {
   const shown = showAll || filter.trim() ? filtered : filtered.slice(0, FIRST_ROWS);
 
   return (
-    <article className={`${ui.card} ${styles.common}`}>
-      <h2 className={styles.heading}>Items in common</h2>
+    <article className={`${ui.card} ${ui.inCommonCard}`}>
+      <h2 className={ui.sectionHeading}>Items in common</h2>
       <p className={`${ui.muted} ${styles.intro}`}>
         Items that two or more of the party keep in storage (bags, saddlebags, armoury, retainers, FC chest), so you can see what
         could be stacked in one place. Equipped gear, market listings and crystals aren't counted.
@@ -71,7 +71,7 @@ export function ItemsInCommon() {
               {filtered.length === 0 ? (
                 <p className={ui.muted}>No items in common match “{filter.trim()}”.</p>
               ) : (
-                <ul className={styles.list}>
+                <ul className={ui.rankedList}>
                   {shown.map((item) => (
                     <Row key={`${item.itemId}:${item.isHq}`} item={item} />
                   ))}
@@ -92,9 +92,9 @@ export function ItemsInCommon() {
 
 function Row({ item }: { item: CommonItem }) {
   return (
-    <li className={styles.row}>
+    <li className={`${ui.rankedRow} ${styles.row}`}>
       <ItemIcon iconId={item.iconId} size="large" />
-      <div className={styles.body}>
+      <div className={ui.rankedBody}>
         <div className={styles.name}>
           {item.name || `Item #${item.itemId}`}
           {item.isHq && <HqBadge />}
@@ -123,7 +123,7 @@ function Row({ item }: { item: CommonItem }) {
           ))}
         </ul>
       </div>
-      <span className={styles.count} title={`Stored by ${item.holders.length} of the selection`}>
+      <span className={`${ui.countPill} ${styles.count}`} title={`Stored by ${item.holders.length} of the selection`}>
         {item.holders.length}
       </span>
     </li>

@@ -5,17 +5,18 @@ import styles from "./components/App.module.css";
 import { LoginView } from "./components/LoginView.tsx";
 import { OverviewView } from "./components/OverviewView.tsx";
 import { SearchView } from "./components/SearchView.tsx";
-import { TopBar, type View } from "./components/TopBar.tsx";
+import { TopBar } from "./components/TopBar.tsx";
 import { WondrousTailsView } from "./components/WondrousTailsView.tsx";
 import { SessionContext } from "./session.ts";
+import { isView, type View } from "./views.ts";
 
 type Auth = { status: "checking" } | { status: "signedOut" } | { status: "signedIn"; member: Member };
 
-/** URL state: ?q= for search (shareable links), ?view=overview|wt for the other tabs. */
+/** URL state: ?q= for search (shareable links), ?view= for the other tabs (see views.ts). */
 function readUrl(): { view: View; query: string } {
   const params = new URL(location.href).searchParams;
   const view = params.get("view");
-  return { view: view === "overview" || view === "wt" ? view : "search", query: params.get("q") ?? "" };
+  return { view: isView(view) ? view : "search", query: params.get("q") ?? "" };
 }
 
 function writeUrl(view: View, query: string): void {
