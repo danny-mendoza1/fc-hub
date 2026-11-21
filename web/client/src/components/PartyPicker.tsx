@@ -37,6 +37,9 @@ export function PartyPicker<K extends string | number>({
           onClick={() => onToggle(o.key)}
           title={o.title}
         >
+          <span aria-hidden="true" className={styles.selection}>
+            ✓
+          </span>
           {o.marker}
           {o.label}
         </button>

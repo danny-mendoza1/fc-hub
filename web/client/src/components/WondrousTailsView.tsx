@@ -50,8 +50,18 @@ export function WondrousTailsView() {
     [books, party],
   );
 
-  if (state.status === "loading") return <p className={ui.muted}>Loading…</p>;
-  if (state.status === "error") return <p className={ui.error}>{state.message}</p>;
+  if (state.status === "loading")
+    return (
+      <p role="status" className={ui.muted}>
+        Loading…
+      </p>
+    );
+  if (state.status === "error")
+    return (
+      <p role="alert" className={ui.error}>
+        {state.message}
+      </p>
+    );
 
   const { lastReset, nextReset } = state.data;
   const activeInParty = books.filter((b) => party.has(b.memberId) && isActive(b.status)).length;
@@ -79,9 +89,7 @@ export function WondrousTailsView() {
       <CommonDuties duties={common} activeInParty={activeInParty} />
 
       <h2 className={ui.sectionHeading}>Journals</h2>
-      <p className={`${ui.muted} ${styles.legend}`}>
-        <span className={styles.legendSwatch} aria-hidden="true" /> needed by two or more of the party · faded = already done
-      </p>
+      <p className={`${ui.muted} ${styles.legend}`}>Shared = needed by two or more selected members. A check mark means completed.</p>
       <div className={styles.books}>
         {ordered.map((b) => (
           <BookCard key={b.memberId} book={b} inParty={party.has(b.memberId)} together={together} />
@@ -200,6 +208,7 @@ function Slot({ slot, common }: { slot: WtSlot; common: boolean }) {
     <li className={`${styles.slot} ${done ? styles.done : ""} ${common ? styles.inCommon : ""}`} title={`${slot.name}: ${title}`}>
       <ItemIcon iconId={slot.iconId} />
       <span className={styles.slotName}>{slot.name}</span>
+      {common && <span className={styles.shared}>Shared</span>}
       {done && (
         <span className={styles.check} role="img" aria-label={title}>
           ✓

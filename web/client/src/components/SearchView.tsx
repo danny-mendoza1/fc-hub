@@ -58,8 +58,6 @@ export function SearchView({ query, onQueryChange }: Props) {
         placeholder="Search items: tincture, iron ore, or an item id"
         autoComplete="off"
         spellCheck={false}
-        // biome-ignore lint/a11y/noAutofocus: the search box is the whole point of this tab.
-        autoFocus
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
       />

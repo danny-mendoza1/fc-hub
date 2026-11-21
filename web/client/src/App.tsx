@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Member } from "../../src/api-types.ts";
 import { api } from "./api.ts";
 import styles from "./components/App.module.css";
@@ -9,7 +9,7 @@ import { TopBar } from "./components/TopBar.tsx";
 import { WondrousTailsView } from "./components/WondrousTailsView.tsx";
 import { clearApiCache } from "./hooks.ts";
 import { SessionContext } from "./session.ts";
-import { isView, type View } from "./views.ts";
+import { isView, VIEWS, type View } from "./views.ts";
 
 type Auth = { status: "checking" } | { status: "signedOut" } | { status: "signedIn"; member: Member };
 
@@ -31,6 +31,17 @@ function writeUrl(view: View, query: string): void {
 export function App() {
   const [auth, setAuth] = useState<Auth>({ status: "checking" });
   const [{ view, query }, setRoute] = useState(readUrl);
+
+  const mainRef = useRef<HTMLElement>(null);
+  const pageName = auth.status === "signedIn" ? VIEWS.find((tab) => tab.view === view)!.label : "Sign in";
+  const previousPage = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (auth.status === "checking") return;
+    document.title = `${pageName} · FC Hub`;
+    if (previousPage.current !== null && previousPage.current !== pageName) mainRef.current?.focus();
+    previousPage.current = pageName;
+  }, [auth.status, pageName]);
 
   useEffect(() => {
     api
@@ -56,8 +67,11 @@ export function App() {
 
   return (
     <>
+      <a href="#main-content" className={styles.skip}>
+        Skip to main content
+      </a>
       <TopBar member={member} view={view} onNavigate={(v) => setRoute((r) => ({ ...r, view: v }))} onSignOut={signOut} />
-      <main className={styles.main}>
+      <main id="main-content" ref={mainRef} tabIndex={-1} aria-label={pageName} className={styles.main}>
         <SessionContext value={session}>
           {auth.status === "signedOut" && <LoginView onSignedIn={(m) => setAuth({ status: "signedIn", member: m })} />}
           {member && view === "search" && <SearchView query={query} onQueryChange={(q) => setRoute((r) => ({ ...r, query: q }))} />}

@@ -1,6 +1,6 @@
 .item { margin-bottom: 14px; }
 .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.name { font-size: 17px; font-weight: 600; }
+.name { margin: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 600; }
 .itemId { color: var(--muted); font-size: 12px; }
 .total { margin-left: auto; color: var(--muted); }
 .total strong { color: var(--text); font-size: 17px; }
@@ -17,12 +17,12 @@
 
 /* Phones: stack each holding as holder + qty, member + age, then the locations (the actual answer). */
 @media (max-width: 700px) {
-  .table thead { display: none; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .row {
-    display: grid; grid-template-columns: 1fr auto; grid-template-areas: "held qty" "member updated" "where where";
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "held qty" "member updated" "where where";
     gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--border);
   }
-  .row td { border: 0; padding: 0; }
+  .row td { overflow-wrap: anywhere; border: 0; padding: 0; }
   .heldBy { grid-area: held; }
   .qty { grid-area: qty; font-weight: 600; }
   .member { grid-area: member; color: var(--muted); font-size: 13px; }
