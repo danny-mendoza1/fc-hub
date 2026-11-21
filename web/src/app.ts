@@ -243,7 +243,7 @@ route("GET", "/api/v1/wondrous-tails", { access: "memberOrCookie", writes: "none
   json(await listWondrousTails(db, now)),
 );
 
-/** One owner's items by section, for the "Who's uploaded" accordions (loaded on expand). */
+/** One owner's items by section, for the "Inventories" accordions (loaded on expand). */
 route("GET", "/api/v1/owners/:ownerId/items", { access: "memberOrCookie", writes: "none" }, async ({ db, params }) => {
   const result = await ownerItems(db, ownerIdParam(params));
   if (!result) throw new HttpError(404, "not_found", "No such owner");
