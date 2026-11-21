@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, test } from "node:test";
 import type { UploadItem } from "../src/contract.ts";
 import { DEFAULT_LIMITS } from "../src/limits.ts";
-import { ALICE, addMember, call, createEnv, FC, item, upload } from "./helpers.ts";
+import { ALICE, addMember, call, createEnv, FC, item, totalChanges, upload } from "./helpers.ts";
 import { preflightSql } from "./preflight.ts";
 
 type Env = ReturnType<typeof createEnv>;
@@ -22,13 +22,8 @@ function rows(env: Env, ownerId: string, section: string): StoredRow[] {
     .all(ownerId, section) as unknown as StoredRow[];
 }
 
-/** Rows inserted, updated or deleted on this connection so far (SQLite's own counter). */
-
 /** Every upload also upserts one usage_daily row (the daily write budget ledger, ADR 0005). */
 const LEDGER = 1;
-function totalChanges(env: Env): number {
-  return Number((env.DB.raw.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
-}
 
 /** A full 140-slot inventory: one distinct stack per slot. */
 function bag(overrides: Record<number, Partial<UploadItem>> = {}): UploadItem[] {

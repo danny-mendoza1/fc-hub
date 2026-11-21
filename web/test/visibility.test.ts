@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { handle, routeTable } from "../src/app.ts";
-import { ADMIN_TOKEN, ALICE, addMember, BOB, call, createEnv, FC, item, upload } from "./helpers.ts";
+import { routeTable } from "../src/app.ts";
+import { ADMIN_TOKEN, ALICE, addMember, BOB, call, createEnv, FC, fakeIconFetch, item, send, upload } from "./helpers.ts";
 
 const BOB_RETAINER = "33777097200000009";
 
 describe("revoked members", () => {
   it("disappear from every read route at once", async () => {
     const env = createEnv();
-    env.FETCH = async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } });
+    env.FETCH = fakeIconFetch;
     const alice = await addMember(env, "Alice");
     const bob = await addMember(env, "Bobmember");
     const ore = (qty: number) => [item(5111, "Iron Ore", qty, "slot 1")];
@@ -36,7 +36,7 @@ describe("revoked members", () => {
             assert.ok(key in samples, `add a sample for :${key}`);
             return key === "ownerId" ? ownerId : samples[key]!;
           }) + (queries[r.path] ?? "");
-        const res = await handle(new Request(`http://test.local${path}`, { headers: { authorization: `Bearer ${alice}` } }), env);
+        const res = await send(env, "GET", path, { token: alice });
         const text = res.headers.get("content-type")?.includes("json") ? await res.text() : "";
         assert.doesNotMatch(text, /Bob/, `${path} leaks the revoked member's data: ${text.slice(0, 200)}`);
       }
