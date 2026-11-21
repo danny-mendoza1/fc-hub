@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import ui from "./ui.module.css";
+import styles from "./PartyPicker.module.css";
 
 export interface PartyOption<K> {
   key: K;
@@ -26,13 +26,13 @@ export function PartyPicker<K extends string | number>({
 }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in a flex row of chips; role="group" gives the same semantics.
-    <div className={ui.party} role="group" aria-label={ariaLabel}>
-      <span className={ui.partyLabel}>{label}</span>
+    <div className={styles.party} role="group" aria-label={ariaLabel}>
+      <span className={styles.partyLabel}>{label}</span>
       {options.map((o) => (
         <button
           key={o.key}
           type="button"
-          className={ui.chip}
+          className={styles.chip}
           aria-pressed={selected.has(o.key)}
           onClick={() => onToggle(o.key)}
           title={o.title}

@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
-import type { CommonItem } from "../../../src/api-types.ts";
 import { commonItems } from "../../../src/item-overlap.ts";
 import { api } from "../api.ts";
-import { numberFormat, placeTitle, placeWhere } from "../format.ts";
+import { numberFormat } from "../format.ts";
 import { useApi, usePartySelection } from "../hooks.ts";
-import { HqBadge } from "./Bits.tsx";
-import { ItemIcon } from "./ItemIcon.tsx";
+import { CommonItemRow } from "./CommonItemRow.tsx";
 import styles from "./ItemsInCommon.module.css";
 import { PartyPicker } from "./PartyPicker.tsx";
 import ui from "./ui.module.css";
@@ -73,7 +71,7 @@ export function ItemsInCommon() {
               ) : (
                 <ul className={ui.rankedList}>
                   {shown.map((item) => (
-                    <Row key={`${item.itemId}:${item.isHq}`} item={item} />
+                    <CommonItemRow key={`${item.itemId}:${item.isHq}`} item={item} />
                   ))}
                 </ul>
               )}
@@ -87,45 +85,5 @@ export function ItemsInCommon() {
         </>
       )}
     </article>
-  );
-}
-
-function Row({ item }: { item: CommonItem }) {
-  return (
-    <li className={`${ui.rankedRow} ${styles.row}`}>
-      <ItemIcon iconId={item.iconId} size="large" />
-      <div className={ui.rankedBody}>
-        <div className={styles.name}>
-          {item.name || `Item #${item.itemId}`}
-          {item.isHq && <HqBadge />}
-          <span className={styles.total}>{numberFormat.format(item.totalQuantity)} total</span>
-        </div>
-        <ul className={styles.holders}>
-          {item.holders.map((h) => (
-            <li key={h.key}>
-              <span className={styles.holder}>{h.label}</span> <span className={styles.qty}>{numberFormat.format(h.quantity)}</span>
-              {/* Shared storage is its own place; for members, say where (inventory, which retainer…). */}
-              {!(h.places.length === 1 && h.places[0]!.ownerKind === "freeCompany") && (
-                <span className={ui.muted}>
-                  {" "}
-                  (
-                  {h.places.map((p, i) => (
-                    <span key={`${p.ownerId}:${p.section}`} title={placeTitle(p)}>
-                      {i > 0 && ", "}
-                      {placeWhere(p)}
-                      {h.places.length > 1 && ` ${numberFormat.format(p.quantity)}`}
-                    </span>
-                  ))}
-                  )
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <span className={`${ui.countPill} ${styles.count}`} title={`Stored by ${item.holders.length} of the selection`}>
-        {item.holders.length}
-      </span>
-    </li>
   );
 }
