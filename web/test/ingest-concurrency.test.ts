@@ -30,11 +30,11 @@ beforeEach(async () => {
   await addMember(env, "Bob");
 });
 
-function chestUpload(contentId: string, items: UploadItem[], capturedAt: string) {
+function chestUpload(contentId: string, items: UploadItem[], capturedAt: string, observedAt: string | null = null) {
   return upload(
     contentId,
     contentId,
-    [{ ownerId: FC, kind: "freeCompany", name: null, sections: [{ section: "FreeCompanyBags", items }] }],
+    [{ ownerId: FC, kind: "freeCompany", name: null, sections: [{ section: "FreeCompanyBags", items, observedAt }] }],
     capturedAt,
   );
 }
@@ -75,6 +75,20 @@ describe("concurrent uploads of a shared section", () => {
     assert.equal(chest.reportedBy, BOB);
     assert.equal(newer.sectionsWritten, 1);
     assert.deepEqual(older, { sectionsWritten: 0, itemsWritten: 0, sectionsSkippedStale: [`${FC}/FreeCompanyBags`], ownersRejected: [] });
+  });
+
+  test("a cached report that commits last doesn't replace a sighting (ADR 0008)", async () => {
+    // Both read an empty section, so only the batch's own SQL can rank them.
+    const db = withRoundTrips(env.DB);
+    await Promise.all([
+      ingestUpload(db, bob, chestUpload(BOB, credits(200), OLDER, OLDER), DEFAULT_LIMITS, NOW),
+      ingestUpload(db, alice, chestUpload(ALICE, credits(100), NEWER), DEFAULT_LIMITS, NOW),
+    ]);
+
+    assert.deepEqual(
+      stored(FC, "FreeCompanyBags").items.map((r) => r.quantity),
+      [200],
+    );
   });
 
   test("a newer report that commits last replaces an older one", async () => {

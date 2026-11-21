@@ -20,7 +20,11 @@ public sealed record UploadPayload(
 
 public sealed record UploadOwner(string OwnerId, OwnerKind Kind, string? Name, IReadOnlyList<UploadSection> Sections);
 
-public sealed record UploadSection(string Section, IReadOnlyList<UploadItem> Items);
+/// <param name="ObservedAt">
+/// Shared sections only: when these exact contents were last seen in game, or null when they come
+/// from Allagan Tools' cache with no known age (ADR 0008; <see cref="ObservationTracker"/>).
+/// </param>
+public sealed record UploadSection(string Section, IReadOnlyList<UploadItem> Items, DateTimeOffset? ObservedAt = null);
 
 public sealed record UploadItem(
     uint ItemId,

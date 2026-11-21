@@ -17,6 +17,22 @@ describe("plugin contract", () => {
     const res = await call(env, "POST", "/api/v1/snapshots", { token: key, body: fixture("plugin-upload-v2.json") });
     assert.equal(res.status, 200, JSON.stringify(res.body));
     assert.deepEqual(res.body, { sectionsWritten: 4, itemsWritten: 3, sectionsSkippedStale: [], ownersRejected: [] });
+
+    // The FC chest carries a sighting (ADR 0008); the plugin sends null for everything else.
+    const chest = await call(env, "GET", "/api/v1/owners/9280933600000000001/items", { token: key });
+    assert.equal(chest.body.sections[0].observedAt, "2026-11-20T18:15:00.000Z");
+    const self = await call(env, "GET", "/api/v1/owners/18014498500000001/items", { token: key });
+    assert.ok(self.body.sections.every((s: { observedAt: string | null }) => s.observedAt === null));
+  });
+
+  it("still accepts uploads from plugins that predate observedAt", async () => {
+    const env = createEnv();
+    const key = await addMember(env, "Alice");
+    const old = fixture("plugin-upload-v2.json");
+    for (const owner of old.owners) for (const section of owner.sections) delete section.observedAt;
+    const res = await call(env, "POST", "/api/v1/snapshots", { token: key, body: old });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.sectionsWritten, 4);
   });
 
   it("accepts the plugin's Wondrous Tails upload (schema v1)", async () => {

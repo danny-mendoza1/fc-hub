@@ -40,7 +40,15 @@ public static class SectionPlanner
         return effective;
     }
 
-    public static UploadPlan Plan(InventorySnapshot snapshot, IReadOnlyDictionary<string, string> uploaded, string pluginVersion)
+    /// <param name="sightings">
+    /// When shared sections were last seen in game (<see cref="ObservationTracker"/>); shared sections
+    /// whose contents match a sighting carry its time as <see cref="UploadSection.ObservedAt"/>.
+    /// </param>
+    public static UploadPlan Plan(
+        InventorySnapshot snapshot,
+        IReadOnlyDictionary<string, string> uploaded,
+        string pluginVersion,
+        IReadOnlyDictionary<string, SectionObservation>? sightings = null)
     {
         var contentId = snapshot.Character.ContentId;
         var owners = new List<UploadOwner>();
@@ -65,7 +73,7 @@ public static class SectionPlanner
                     continue;
                 }
 
-                sections.Add(new UploadSection(group.Key, items));
+                sections.Add(new UploadSection(group.Key, items, SeenAt(sightings, owner, group.Key, items)));
                 newHashes[key] = hash;
                 itemCount += items.Count;
             }
@@ -78,7 +86,7 @@ public static class SectionPlanner
                 var section = key[prefix.Length..];
                 if (!present.Contains(section))
                 {
-                    sections.Add(new UploadSection(section, Array.Empty<UploadItem>()));
+                    sections.Add(new UploadSection(section, Array.Empty<UploadItem>(), SeenAt(sightings, owner, section, Array.Empty<UploadItem>())));
                     removedKeys.Add(key);
                 }
             }
@@ -93,7 +101,12 @@ public static class SectionPlanner
         return new UploadPlan(payload, newHashes, removedKeys, owners.Sum(o => o.Sections.Count), itemCount);
     }
 
-    private static UploadItem ToUploadItem(SnapshotItem i) => new(
+    private static DateTimeOffset? SeenAt(
+        IReadOnlyDictionary<string, SectionObservation>? sightings, SnapshotOwner owner, string section, IReadOnlyList<UploadItem> items) =>
+        sightings != null && ObservationTracker.IsShared(owner.Kind) ? ObservationTracker.SeenAt(sightings, owner.OwnerId, section, items) : null;
+
+    /// <summary>An item as it travels in an upload (and as section contents are hashed).</summary>
+    public static UploadItem ToUploadItem(SnapshotItem i) => new(
         i.ItemId, i.Name, i.IconId, i.Quantity, i.IsHq, i.IsCollectable, i.Container, i.SortedContainer, i.SortedSlot, i.Location);
 
     private static string Hash(OwnerKind kind, string? name, IReadOnlyList<UploadItem> items) =>

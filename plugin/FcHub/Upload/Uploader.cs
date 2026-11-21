@@ -34,6 +34,9 @@ public sealed class Uploader
     /// </summary>
     private readonly Dictionary<string, string?> heldBack = new();
 
+    /// <summary>When shared sections were last seen in game (persisted in the config).</summary>
+    private readonly ObservationTracker observations;
+
     public Uploader(Configuration configuration, IDalamudPluginInterface pluginInterface, IPluginLog log, HubClient client, UploadChannel channel, string pluginVersion)
     {
         this.configuration = configuration;
@@ -42,6 +45,7 @@ public sealed class Uploader
         this.client = client;
         this.channel = channel;
         this.pluginVersion = pluginVersion;
+        observations = new ObservationTracker(configuration.SharedSightings);
     }
 
     public UploadStatus Status { get; private set; } = UploadStatus.Initial;
@@ -82,6 +86,13 @@ public sealed class Uploader
     /// </summary>
     public void Offer(InventorySnapshot snapshot, bool manual = false)
     {
+        // Every snapshot, not just the ones that get uploaded: a sighting is a change between two
+        // consecutive snapshots. Only shared owners are hashed here (a few hundred items at most).
+        if (observations.Observe(snapshot))
+        {
+            pluginInterface.SavePluginConfig(configuration);
+        }
+
         if (!manual && DateTime.UtcNow - lastUploadAt < MinAutomaticInterval)
         {
             return;
@@ -100,13 +111,14 @@ public sealed class Uploader
 
         // A manual upload ("Upload now") also retries owners the server rejected this session.
         var uploaded = SectionPlanner.Effective(configuration.UploadedSections, manual ? null : heldBack);
+        var sightings = observations.Copy();
         UploadPlan? plan = null;
         channel.TrySend<UploadResult>(
             manual,
             async (server, apiKey, token) =>
             {
                 // Hashing and serializing happen here, off the framework thread.
-                plan = SectionPlanner.Plan(snapshot, uploaded, pluginVersion);
+                plan = SectionPlanner.Plan(snapshot, uploaded, pluginVersion, sightings);
                 if (plan.IsEmpty)
                 {
                     return new HubResponse<UploadResult>(true, 0, null, null, null);
