@@ -27,7 +27,7 @@ const dateTime = new Intl.DateTimeFormat(undefined, {
 });
 
 export function WondrousTailsView() {
-  const state = useApi((signal) => api.wondrousTails(signal), []);
+  const state = useApi((signal) => api.wondrousTails(signal), [], { cacheKey: "wondrous-tails" });
 
   const books = useMemo(() => (state.status === "done" ? state.data.books : []), [state]);
   const memberIds = useMemo(() => books.map((b) => b.memberId), [books]);

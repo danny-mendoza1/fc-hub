@@ -17,9 +17,12 @@ const NO_PLACES: PlacesByItem = new Map();
 
 /** Loads one owner's items (on first expand) and shows a nested accordion per section. */
 export function OwnerItemsPanel({ ownerId }: { ownerId: string }) {
-  const state = useApi((signal) => api.ownerItems(ownerId, signal), [ownerId], "Couldn't load items");
+  const state = useApi((signal) => api.ownerItems(ownerId, signal), [ownerId], {
+    cacheKey: `owner-items:${ownerId}`,
+    errorPrefix: "Couldn't load items",
+  });
   // "Also in" is extra: if it fails, the items still show, just without it.
-  const alsoIn = useApi((signal) => api.alsoIn(ownerId, signal), [ownerId]);
+  const alsoIn = useApi((signal) => api.alsoIn(ownerId, signal), [ownerId], { cacheKey: `also-in:${ownerId}` });
   const places = useMemo(
     () => (alsoIn.status === "done" ? new Map(alsoIn.data.items.map((i) => [itemKey(i), i.places])) : NO_PLACES),
     [alsoIn],

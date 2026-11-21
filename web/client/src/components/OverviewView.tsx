@@ -10,7 +10,7 @@ import { OwnerItemsPanel } from "./OwnerItemsPanel.tsx";
 import ui from "./ui.module.css";
 
 export function OverviewView() {
-  const state = useApi((signal) => api.overview(signal), []);
+  const state = useApi((signal) => api.overview(signal), [], { cacheKey: "overview" });
 
   return (
     <section>
