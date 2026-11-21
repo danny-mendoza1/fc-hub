@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Dalamud.Configuration;
 using FcHub.Snapshot;
+using FcHub.Upload;
 
 namespace FcHub;
 
@@ -33,6 +34,13 @@ public sealed class Configuration : IPluginConfiguration
     /// Only sections whose hash changed are uploaded.
     /// </summary>
     public Dictionary<string, string> UploadedSections { get; set; } = new();
+
+    /// <summary>
+    /// When each shared section (FC chest, houses) was last seen changing in game, keyed
+    /// "ownerId/section" (not per character: alts share this data). See <see cref="ObservationTracker"/>.
+    /// Facts about the game, not about a server, so changing servers keeps them.
+    /// </summary>
+    public Dictionary<string, SectionObservation> SharedSightings { get; set; } = new();
 
     /// <summary>The one character whose Wondrous Tails journal is shared (alts are ignored). 0 = first character seen.</summary>
     public ulong WondrousTailsContentId { get; set; }

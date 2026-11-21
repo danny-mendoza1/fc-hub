@@ -24,9 +24,10 @@
               "sortedSlot": 1,
               "location": "Inventory · bag 1 · slot 2"
             }
-          ]
+          ],
+          "observedAt": null
         },
-        { "section": "Currency", "items": [] }
+        { "section": "Currency", "items": [], "observedAt": null }
       ]
     },
     {
@@ -49,7 +50,8 @@
               "sortedSlot": 0,
               "location": "FC chest · slot 1"
             }
-          ]
+          ],
+          "observedAt": "2026-11-20T18:15:00+00:00"
         }
       ]
     },
@@ -73,7 +75,8 @@
               "sortedSlot": 0,
               "location": "House (interior) · page 1 · slot 1"
             }
-          ]
+          ],
+          "observedAt": null
         }
       ]
     }

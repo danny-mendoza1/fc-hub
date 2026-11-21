@@ -46,7 +46,10 @@ public class ContractTests
                 }),
                 new UploadOwner("9280933600000000001", OwnerKind.FreeCompany, null, new[]
                 {
-                    new UploadSection("FreeCompanyBags", new[] { new UploadItem(80, "", 0, 2257356, false, false, 2502, 2502, 0, "FC chest · slot 1") }),
+                    new UploadSection(
+                        "FreeCompanyBags",
+                        new[] { new UploadItem(80, "", 0, 2257356, false, false, 2502, 2502, 0, "FC chest · slot 1") },
+                        ObservedAt: new DateTimeOffset(2026, 11, 20, 18, 15, 0, TimeSpan.Zero)),
                 }),
                 new UploadOwner("86131342900265472", OwnerKind.Housing, "Ishgard · Ward 2 · Plot 51", new[]
                 {
