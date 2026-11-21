@@ -1,3 +1,5 @@
+import type { ItemPlace } from "../../src/api-types.ts";
+
 export const numberFormat = new Intl.NumberFormat();
 
 const relativeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -81,4 +83,23 @@ export function bySectionOrder(a: { section: string }, b: { section: string }): 
     return i === -1 ? SECTION_ORDER.length : i;
   };
   return rank(a.section) - rank(b.section) || a.section.localeCompare(b.section);
+}
+
+/** Where in someone's storage an item is: "Saddlebag", "Sir-noodle (retainer)", "FC chest". */
+export function placeWhere(place: ItemPlace): string {
+  const section = SECTION_LABELS[place.section] ?? place.section;
+  if (place.ownerKind === "freeCompany") return "FC chest";
+  if (place.ownerKind === "retainer") return `${place.ownerName ?? "Retainer"} (retainer)`;
+  if (place.ownerKind === "housing") return `${place.ownerName ?? "House"} ${section.toLowerCase()}`;
+  return section;
+}
+
+/** Tooltip detail: whose it is, stacks, and when it was captured. */
+export function placeTitle(place: ItemPlace): string {
+  const whose =
+    place.ownerKind === "retainer" ? `${place.character}'s retainer ${place.ownerName ?? ""}`.trim()
+    : place.ownerKind === "character" ? `${place.character}'s ${(SECTION_LABELS[place.section] ?? place.section).toLowerCase()}`
+    : placeWhere(place);
+  const stacks = place.stacks > 1 ? ` in ${place.stacks} stacks` : "";
+  return `${whose}: ${numberFormat.format(place.quantity)}${stacks}, as of ${ago(place.updatedAt)}`;
 }

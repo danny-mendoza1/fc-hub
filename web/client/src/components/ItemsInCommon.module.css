@@ -1,0 +1,25 @@
+.common { margin-bottom: 20px; }
+.heading { font-size: 16px; margin: 0 0 6px; }
+.intro { font-size: 13px; margin: 0 0 12px; }
+.filter { margin: 0 0 8px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 8px 4px; border-top: 1px solid var(--border);
+}
+.body { flex: 1; min-width: 0; }
+.name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; }
+.total { color: var(--muted); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
+.holders {
+  list-style: none; margin: 3px 0 0; padding: 0; font-size: 13px;
+  display: flex; flex-wrap: wrap; gap: 2px 16px;
+}
+.holder { font-weight: 600; }
+.qty { font-variant-numeric: tabular-nums; }
+.count {
+  flex: none; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; margin-top: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--gold); color: #1b1b1b; font-weight: 700;
+}
+.more { margin-top: 10px; }

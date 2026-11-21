@@ -1,5 +1,7 @@
 import type {
+  AlsoInResponse,
   ErrorResponse,
+  ItemsInCommonResponse,
   MeResponse,
   OverviewResponse,
   OwnerItems,
@@ -43,6 +45,10 @@ export const api = {
   wondrousTails: () => request<WondrousTailsResponse>("/api/v1/wondrous-tails"),
 
   ownerItems: (ownerId: string) => request<OwnerItems>(`/api/v1/owners/${encodeURIComponent(ownerId)}/items`),
+
+  alsoIn: (ownerId: string) => request<AlsoInResponse>(`/api/v1/owners/${encodeURIComponent(ownerId)}/also-in`),
+
+  itemsInCommon: () => request<ItemsInCommonResponse>("/api/v1/items/in-common"),
 };
 
 export function errorMessage(error: unknown): string {

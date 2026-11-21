@@ -80,13 +80,13 @@ export function WondrousTailsView({ onUnauthorized }: { onUnauthorized: () => vo
         <span title={dateTime.format(new Date(nextReset))}>{ago(nextReset)}</span>
       </p>
 
-      <div className={styles.party} role="group" aria-label="Party members">
-        <span className={styles.partyLabel}>Party</span>
+      <div className={ui.party} role="group" aria-label="Party members">
+        <span className={ui.partyLabel}>Party</span>
         {books.map((b) => (
           <button
             key={b.memberId}
             type="button"
-            className={styles.chip}
+            className={ui.chip}
             aria-pressed={party.has(b.memberId)}
             onClick={() => toggle(b.memberId)}
             title={STATUS[b.status].label}

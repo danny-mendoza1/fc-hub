@@ -4,6 +4,7 @@ import { api, errorMessage, Unauthorized } from "../api.ts";
 import { bySectionOrder, numberFormat, SECTION_LABELS } from "../format.ts";
 import { Accordion } from "./Accordion.tsx";
 import { Age, Holder } from "./Bits.tsx";
+import { ItemsInCommon } from "./ItemsInCommon.tsx";
 import { OwnerItemsPanel } from "./OwnerItemsPanel.tsx";
 import ui from "./ui.module.css";
 import styles from "./OverviewView.module.css";
@@ -39,6 +40,7 @@ export function OverviewView({ onUnauthorized }: { onUnauthorized: () => void })
       {state.status === "done" && state.characters.length === 0 && (
         <p className={ui.muted}>Nobody has uploaded yet. Turn on uploads in the plugin's settings (/fchub config).</p>
       )}
+      {state.status === "done" && state.characters.length > 0 && <ItemsInCommon onUnauthorized={onUnauthorized} />}
       {state.status === "done" &&
         state.characters.map((c) => <CharacterCard key={c.contentId} character={c} onUnauthorized={onUnauthorized} />)}
     </section>
