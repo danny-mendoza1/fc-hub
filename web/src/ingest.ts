@@ -1,6 +1,7 @@
 import type { Member } from "./auth.ts";
 import type { Upload, UploadItem } from "./contract.ts";
 import type { SqlDatabase, SqlStatement } from "./db/types.ts";
+import type { Limits } from "./limits.ts";
 
 /** Kinds that belong to exactly one character; others (FC chest, houses) are shared. */
 const PRIVATE_KINDS = new Set(["character", "retainer"]);
@@ -23,7 +24,7 @@ export interface IngestResult {
   itemsWritten: number;
   /** Sections the server already has newer data for (e.g. the FC chest after a mate's newer upload). */
   sectionsSkippedStale: string[];
-  /** Owners that belong to someone else's character. */
+  /** Owners that belong to someone else's character, or new owners past the per-character cap. */
   ownersRejected: string[];
 }
 
@@ -35,7 +36,13 @@ export class IngestError extends Error {
   }
 }
 
-export async function ingestUpload(db: SqlDatabase, member: Member, upload: Upload, now = new Date()): Promise<IngestResult> {
+export async function ingestUpload(
+  db: SqlDatabase,
+  member: Member,
+  upload: Upload,
+  limits: Pick<Limits, "ownersPerCharacter">,
+  now = new Date(),
+): Promise<IngestResult> {
   const { character } = upload;
   const capturedAt = clampCapturedAt(upload.capturedAt, now);
 
@@ -51,6 +58,14 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
     .bind(ownerIds)
     .all<{ owner_id: string; section: string; captured_at: string }>();
 
+  // New owners count against a per-character cap, so a buggy or hostile client can't create
+  // unlimited owners (each one grows storage and every scan of it).
+  const owned = await db
+    .prepare("SELECT COUNT(*) AS n FROM owners WHERE reported_by = ?")
+    .bind(character.contentId)
+    .first<{ n: number }>();
+  let ownerCount = owned?.n ?? 0;
+
   const ownerById = new Map(existingOwners.results.map((o) => [o.owner_id, o]));
   const sectionTime = new Map(existingSections.results.map((s) => [`${s.owner_id}\u0000${s.section}`, s.captured_at]));
 
@@ -64,6 +79,13 @@ export async function ingestUpload(db: SqlDatabase, member: Member, upload: Uplo
     if (characterMismatch || (isPrivate && existing && existing.reported_by !== character.contentId)) {
       result.ownersRejected.push(owner.ownerId);
       continue;
+    }
+    if (existing === undefined) {
+      if (ownerCount >= limits.ownersPerCharacter) {
+        result.ownersRejected.push(owner.ownerId);
+        continue;
+      }
+      ownerCount++;
     }
 
     statements.push(

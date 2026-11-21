@@ -7,6 +7,8 @@
  * left untouched. Retainers the plugin can't see this session therefore keep their
  * last-known contents.
  */
+import { DEFAULT_LIMITS, type Limits } from "./limits.ts";
+
 export const SCHEMA_VERSION = 2;
 
 export const OWNER_KINDS = ["character", "retainer", "freeCompany", "housing", "unknown"] as const;
@@ -50,17 +52,16 @@ export interface Upload {
   owners: UploadOwner[];
 }
 
-export const LIMITS = {
-  owners: 64,
-  sectionsPerOwner: 32,
-  itemsPerSection: 10_000,
-  text: 200,
-} as const;
+/** Max length of any text field (names, locations). */
+export const TEXT_MAX = 200;
+
+/** The upload-shape limits from limits.ts (overridable there, not here). */
+export type UploadLimits = Pick<Limits, "ownersPerUpload" | "sectionsPerOwner" | "itemsPerSection" | "itemsPerUpload">;
 
 export type Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
 
 /** Strict structural validation; unknown fields are ignored, wrong types are errors. */
-export function validateUpload(input: unknown): Validation<Upload> {
+export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LIMITS): Validation<Upload> {
   const errors: string[] = [];
   const v = new Validator(errors);
 
@@ -83,18 +84,18 @@ export function validateUpload(input: unknown): Validation<Upload> {
     homeWorld: v.optionalText(characterIn.homeWorld, "character.homeWorld"),
   };
 
-  const owners = v.array(root.owners, "owners", LIMITS.owners)?.map((ownerIn, o) => {
+  const owners = v.array(root.owners, "owners", limits.ownersPerUpload)?.map((ownerIn, o) => {
     const path = `owners[${o}]`;
     const owner = v.object(ownerIn, path);
     if (!owner) return undefined;
     const kind = v.text(owner.kind, `${path}.kind`);
     if (kind !== undefined && !(OWNER_KINDS as readonly string[]).includes(kind)) errors.push(`${path}.kind is invalid`);
 
-    const sections = v.array(owner.sections, `${path}.sections`, LIMITS.sectionsPerOwner)?.map((sectionIn, s) => {
+    const sections = v.array(owner.sections, `${path}.sections`, limits.sectionsPerOwner)?.map((sectionIn, s) => {
       const spath = `${path}.sections[${s}]`;
       const section = v.object(sectionIn, spath);
       if (!section) return undefined;
-      const items = v.array(section.items, `${spath}.items`, LIMITS.itemsPerSection)?.map((itemIn, i) => {
+      const items = v.array(section.items, `${spath}.items`, limits.itemsPerSection)?.map((itemIn, i) => {
         const ipath = `${spath}.items[${i}]`;
         const item = v.object(itemIn, ipath);
         if (!item) return undefined;
@@ -124,6 +125,9 @@ export function validateUpload(input: unknown): Validation<Upload> {
       sections,
     };
   });
+
+  const totalItems = owners?.reduce((sum, o) => sum + (o?.sections?.reduce((n, sec) => n + (sec?.items?.length ?? 0), 0) ?? 0), 0) ?? 0;
+  if (totalItems > limits.itemsPerUpload) errors.push(`owners hold ${totalItems} items in total; at most ${limits.itemsPerUpload} per upload`);
 
   const ownerIds = owners?.map((o) => o?.ownerId);
   if (ownerIds && new Set(ownerIds).size !== ownerIds.length) errors.push("owners has duplicate ownerIds");
@@ -168,8 +172,8 @@ class Validator {
   }
 
   text(value: unknown, path: string, allowEmpty = false): string | undefined {
-    if (typeof value === "string" && value.length <= LIMITS.text && (allowEmpty || value.length > 0)) return value;
-    this.errors.push(`${path} must be a ${allowEmpty ? "" : "non-empty "}string of at most ${LIMITS.text} characters`);
+    if (typeof value === "string" && value.length <= TEXT_MAX && (allowEmpty || value.length > 0)) return value;
+    this.errors.push(`${path} must be a ${allowEmpty ? "" : "non-empty "}string of at most ${TEXT_MAX} characters`);
     return undefined;
   }
 

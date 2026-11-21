@@ -6,7 +6,11 @@
 export type SqlValue = string | number | null;
 
 export interface SqlRunResult {
-  meta: { changes: number; last_row_id: number };
+  /**
+   * D1 also reports `rows_read` / `rows_written` (what it bills, index rows included);
+   * node:sqlite doesn't, so they're optional. See db/guards.ts.
+   */
+  meta: { changes: number; last_row_id: number; rows_read?: number; rows_written?: number };
 }
 
 export interface SqlStatement {

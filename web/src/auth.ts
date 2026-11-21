@@ -8,6 +8,18 @@ export interface Member {
   displayName: string;
 }
 
+/**
+ * What the server knows about the caller. Only `Member` (via `publicMember`) is ever sent to
+ * clients; the budget override rides along with the key lookup so checking it costs no extra read.
+ */
+export interface AuthedMember extends Member {
+  writeBudgetOverride: { rows: number; until: string | null } | null;
+}
+
+export function publicMember(member: Member): Member {
+  return { id: member.id, displayName: member.displayName };
+}
+
 /** 32 random bytes, base64url-encoded. Only the SHA-256 hash is stored. */
 export function generateApiKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -53,13 +65,23 @@ export function clearSessionCookie(): string {
 }
 
 /** Looks up an active member by API key. */
-export async function memberForKey(db: SqlDatabase, key: string | null): Promise<Member | null> {
+export async function memberForKey(db: SqlDatabase, key: string | null): Promise<AuthedMember | null> {
   if (!key || !key.startsWith(KEY_PREFIX)) return null;
   const row = await db
-    .prepare("SELECT id, display_name FROM members WHERE key_hash = ? AND revoked_at IS NULL")
+    .prepare(
+      `SELECT id, display_name, write_budget_override, write_budget_override_until
+       FROM members WHERE key_hash = ? AND revoked_at IS NULL`,
+    )
     .bind(await hashKey(key))
-    .first<{ id: number; display_name: string }>();
-  return row ? { id: row.id, displayName: row.display_name } : null;
+    .first<{ id: number; display_name: string; write_budget_override: number | null; write_budget_override_until: string | null }>();
+  return row ? { id: row.id, displayName: row.display_name, writeBudgetOverride: writeBudgetOverrideOf(row) } : null;
+}
+
+export function writeBudgetOverrideOf(row: {
+  write_budget_override: number | null;
+  write_budget_override_until: string | null;
+}): AuthedMember["writeBudgetOverride"] {
+  return row.write_budget_override === null ? null : { rows: row.write_budget_override, until: row.write_budget_override_until };
 }
 
 /**
@@ -67,7 +89,7 @@ export async function memberForKey(db: SqlDatabase, key: string | null): Promise
  * only when `allowCookie` is set, which we do for read-only GET routes. Anything that changes
  * data needs the header, which a cross-site page can't attach, so cookies can't be used for CSRF.
  */
-export async function authenticateMember(db: SqlDatabase, request: Request, allowCookie = false): Promise<Member | null> {
+export async function authenticateMember(db: SqlDatabase, request: Request, allowCookie = false): Promise<AuthedMember | null> {
   const bearer = bearerToken(request);
   if (bearer) return memberForKey(db, bearer);
   return allowCookie ? memberForKey(db, readCookie(request, SESSION_COOKIE)) : null;
