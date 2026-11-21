@@ -34,13 +34,14 @@ test("sign in, search, and sign out", async ({ page }) => {
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-  // The 401 for the wrong key is expected; nothing else should have failed.
+  // The signed-out session check and the wrong key are expected 401s; nothing else should fail.
   expect(errors.filter((e) => !e.includes("401"))).toEqual([]);
 });
 
 test("who's uploaded: drill-down with Also in, and items in common with a remembered party", async ({ page }) => {
-  const errors = watchConsole(page);
+  // Watch from after sign-in: the signed-out page's session check is an expected 401.
   await signIn(page);
+  const errors = watchConsole(page);
   await page.getByRole("button", { name: "Who's uploaded" }).click();
 
   // Retainer drill-down: its only section opens straight away; Iron Ore is also elsewhere.
@@ -66,8 +67,8 @@ test("who's uploaded: drill-down with Also in, and items in common with a rememb
 });
 
 test("wondrous tails: duties in common for the chosen party", async ({ page }) => {
-  const errors = watchConsole(page);
   await signIn(page);
+  const errors = watchConsole(page);
   await page.getByRole("button", { name: "Wondrous Tails" }).click();
 
   const common = page.locator("article", { has: page.getByRole("heading", { name: "Duties in common" }) });
