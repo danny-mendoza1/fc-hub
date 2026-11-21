@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using FcHub.Snapshot;
 
 namespace FcHub.Upload;
@@ -72,15 +69,8 @@ public static class SectionPlanner
     private static UploadItem ToUploadItem(SnapshotItem i) => new(
         i.ItemId, i.Name, i.IconId, i.Quantity, i.IsHq, i.IsCollectable, i.Container, i.SortedContainer, i.SortedSlot, i.Location);
 
-    private static string Hash(OwnerKind kind, string? name, IReadOnlyList<UploadItem> items)
-    {
-        var json = JsonSerializer.SerializeToUtf8Bytes(items, UploadJson.Options);
-        var header = Encoding.UTF8.GetBytes($"{kind}\u0000{name}\u0000");
-        var buffer = new byte[header.Length + json.Length];
-        header.CopyTo(buffer, 0);
-        json.CopyTo(buffer, header.Length);
-        return Convert.ToHexString(SHA256.HashData(buffer));
-    }
+    private static string Hash(OwnerKind kind, string? name, IReadOnlyList<UploadItem> items) =>
+        ContentHash.Of(items, prefix: $"{kind}\u0000{name}\u0000");
 }
 
 /// <param name="NewHashes">Hashes to record once the server accepts the upload.</param>

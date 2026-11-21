@@ -1,7 +1,5 @@
 using System;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text.Json;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FcHub.Game;
@@ -221,25 +219,10 @@ public sealed class WondrousTailsSync : IDisposable
     /// includes the reset week, so the first read after each weekly reset re-uploads and the
     /// website doesn't flag an unchanged book as stale.
     /// </summary>
-    private static string Hash(WondrousTailsPayload payload)
-    {
-        var json = JsonSerializer.SerializeToUtf8Bytes(payload with { CapturedAt = default, PluginVersion = string.Empty }, UploadJson.Options);
-        var week = LastWeeklyReset(DateTimeOffset.UtcNow).ToUnixTimeSeconds().ToString();
-        var weekBytes = System.Text.Encoding.UTF8.GetBytes(week);
-        var buffer = new byte[json.Length + weekBytes.Length];
-        json.CopyTo(buffer, 0);
-        weekBytes.CopyTo(buffer, json.Length);
-        return Convert.ToHexString(SHA256.HashData(buffer));
-    }
-
-    /// <summary>The game's weekly reset: Tuesdays 08:00 UTC.</summary>
-    public static DateTimeOffset LastWeeklyReset(DateTimeOffset now)
-    {
-        var utc = now.ToUniversalTime();
-        var daysSinceTuesday = ((int)utc.DayOfWeek - (int)DayOfWeek.Tuesday + 7) % 7;
-        var reset = new DateTimeOffset(utc.Year, utc.Month, utc.Day, 8, 0, 0, TimeSpan.Zero).AddDays(-daysSinceTuesday);
-        return reset > utc ? reset.AddDays(-7) : reset;
-    }
+    private static string Hash(WondrousTailsPayload payload) =>
+        ContentHash.Of(
+            payload with { CapturedAt = default, PluginVersion = string.Empty },
+            suffix: WeeklyReset.Last(DateTimeOffset.UtcNow).ToUnixTimeSeconds().ToString());
 
     private void SetStatus(string message, bool isError)
     {
