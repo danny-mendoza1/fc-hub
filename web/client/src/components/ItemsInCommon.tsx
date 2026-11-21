@@ -18,7 +18,7 @@ const FIRST_ROWS = 15;
  * own "holders"), to spot what could be consolidated. Works like Wondrous Tails' duties in common.
  */
 export function ItemsInCommon() {
-  const state = useApi((signal) => api.itemsInCommon(signal), []);
+  const state = useApi((signal) => api.itemsInCommon(signal), [], { cacheKey: "items-in-common" });
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
 

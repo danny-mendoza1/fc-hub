@@ -7,6 +7,7 @@ import { OverviewView } from "./components/OverviewView.tsx";
 import { SearchView } from "./components/SearchView.tsx";
 import { TopBar } from "./components/TopBar.tsx";
 import { WondrousTailsView } from "./components/WondrousTailsView.tsx";
+import { clearApiCache } from "./hooks.ts";
 import { SessionContext } from "./session.ts";
 import { isView, type View } from "./views.ts";
 
@@ -40,7 +41,10 @@ export function App() {
 
   useEffect(() => writeUrl(view, query), [view, query]);
 
-  const signedOut = useCallback(() => setAuth({ status: "signedOut" }), []);
+  const signedOut = useCallback(() => {
+    clearApiCache();
+    setAuth({ status: "signedOut" });
+  }, []);
   const session = useMemo(() => ({ signedOut }), [signedOut]);
 
   async function signOut() {
