@@ -23,7 +23,14 @@ export function OverviewView() {
       {state.status === "done" && state.data.characters.length === 0 && (
         <p className={ui.muted}>Nobody has uploaded yet. Turn on uploads in the plugin's settings (/fchub config).</p>
       )}
-      {state.status === "done" && state.data.characters.length > 0 && <ItemsInCommon />}
+      {state.status === "done" && state.data.characters.length > 0 && (
+        <>
+          <ItemsInCommon />
+          <h2 id="inventories" tabIndex={-1} className={styles.inventoryHeading}>
+            Individual inventories
+          </h2>
+        </>
+      )}
       {state.status === "done" && state.data.characters.map((c) => <CharacterCard key={c.contentId} character={c} />)}
     </section>
   );
