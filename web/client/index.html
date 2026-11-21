@@ -6,6 +6,8 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>FC Hub</title>
     <link rel="icon" href="/src/art/fc-crest.png" type="image/png" />
+    <!-- The sign-in check starts with the page, not after the script loads; api.me() picks it up. -->
+    <link rel="preload" href="/api/v1/me" as="fetch" crossorigin="anonymous" />
   </head>
   <body>
     <div id="root"></div>

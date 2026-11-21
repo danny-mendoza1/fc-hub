@@ -7,7 +7,16 @@ import type { OverviewCharacter } from "./owners.ts";
 import type { SearchHit } from "./search.ts";
 
 export type { Member } from "./auth.ts";
-export type { AlsoInResponse, CommonItem, ItemHolder, ItemPlace, ItemsInCommonResponse, PlacedItem } from "./item-overlap.ts";
+export type {
+  AlsoInResponse,
+  AlsoInWire,
+  CommonItem,
+  ItemHolder,
+  ItemPlace,
+  ItemsInCommonResponse,
+  ItemsInCommonWire,
+  PlacedItem,
+} from "./item-overlap.ts";
 export type { OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection } from "./owners.ts";
 export type { Holding, SearchHit } from "./search.ts";
 export { MAX_QUERY_LENGTH } from "./search.ts";
@@ -42,7 +51,7 @@ export interface OverviewResponse {
   characters: OverviewCharacter[];
 }
 
-/** GET /api/v1/owners/:ownerId/items is `OwnerItems`; /also-in is `AlsoInResponse`. GET /api/v1/items/in-common is `ItemsInCommonResponse`. GET /api/v1/icons/:iconId is image/png. */
+/** GET /api/v1/owners/:ownerId/items is `OwnerItems`; /also-in is `AlsoInWire`. GET /api/v1/items/in-common is `ItemsInCommonWire` (both expanded by the client with `expandPlaces`). GET /api/v1/icons/:iconId is image/png. */
 
 /** Every error response. */
 export interface ErrorResponse {

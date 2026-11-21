@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import type { Fetcher } from "../src/icons.ts";
-import { xivapiIconUrl } from "../src/icons.ts";
-import { ALICE, ALICE_RETAINER, addMember, call, createEnv, item, upload } from "./helpers.ts";
+import { ICON_EDGE_TTL_SECONDS, xivapiIconUrl } from "../src/icons.ts";
+import { ALICE, ALICE_RETAINER, addMember, call, createEnv, item, send, upload } from "./helpers.ts";
 
 describe("owner items (accordion data)", () => {
   let env: ReturnType<typeof createEnv>;
@@ -67,12 +67,25 @@ describe("icon proxy", () => {
 
   function fakeUpstream(response: () => Response | Promise<Response>) {
     const calls: string[] = [];
-    const fetcher: Fetcher = async (input) => {
+    const inits: Parameters<Fetcher>[1][] = [];
+    const fetcher: Fetcher = async (input, init) => {
       calls.push(input);
+      inits.push(init);
       return response();
     };
-    return { calls, fetcher };
+    return { calls, inits, fetcher };
   }
+
+  it("asks Cloudflare to cache successful icons at the edge, never errors", async () => {
+    const upstream = fakeUpstream(() => new Response(PNG, { headers: { "content-type": "image/png" } }));
+    const env = { ...createEnv(), FETCH: upstream.fetcher };
+    const key = await addMember(env, "Alice");
+    await send(env, "GET", "/api/v1/icons/20603", { token: key });
+    assert.deepEqual(upstream.inits[0]?.cf, {
+      cacheEverything: true,
+      cacheTtlByStatus: { "200-299": ICON_EDGE_TTL_SECONDS, "300-599": 0 },
+    });
+  });
 
   it("builds XIVAPI's high-res icon path", () => {
     assert.equal(xivapiIconUrl(20603), "https://v2.xivapi.com/api/asset?path=ui/icon/020000/020603_hr1.tex&format=png");

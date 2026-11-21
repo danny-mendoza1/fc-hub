@@ -21,16 +21,34 @@ export function xivapiIconUrl(iconId: number): string {
   return `https://v2.xivapi.com/api/asset?path=ui/icon/${pad(group)}/${pad(iconId)}_hr1.tex&format=png`;
 }
 
-export type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
+/** Cloudflare's per-request cache options (`RequestInit.cf` on Workers; other runtimes ignore it). */
+export type IconRequestInit = RequestInit & { cf?: { cacheEverything: boolean; cacheTtlByStatus: Record<string, number> } };
+
+export type Fetcher = (input: string, init?: IconRequestInit) => Promise<Response>;
+
+/** An icon never changes for a given id, so the edge keeps it for a year. */
+export const ICON_EDGE_TTL_SECONDS = 365 * 24 * 60 * 60;
+
+/**
+ * Upstream fetch options. `cf` caches XIVAPI's answer in Cloudflare's edge cache, shared by every
+ * member: only the first view of an icon in a data center reaches XIVAPI, later ones (anyone's)
+ * come from the edge in milliseconds. Successes only; errors aren't cached, so a hiccup at XIVAPI
+ * doesn't stick. This is fetch() caching, not the Cache API, which isn't available behind
+ * Cloudflare Access (planned, see README).
+ */
+export function iconFetchInit(): IconRequestInit {
+  return {
+    headers: { accept: "image/png", "user-agent": "fc-hub (+https://github.com/danny-mendoza1/fc-hub)" },
+    signal: AbortSignal.timeout(10_000),
+    cf: { cacheEverything: true, cacheTtlByStatus: { "200-299": ICON_EDGE_TTL_SECONDS, "300-599": 0 } },
+  };
+}
 
 /** Fetches one icon as PNG. Upstream failures become 404/502 without leaking upstream bodies. */
 export async function fetchIcon(iconId: number, fetcher: Fetcher): Promise<Response> {
   let upstream: Response;
   try {
-    upstream = await fetcher(xivapiIconUrl(iconId), {
-      headers: { accept: "image/png", "user-agent": "fc-hub (+https://github.com/danny-mendoza1/fc-hub)" },
-      signal: AbortSignal.timeout(10_000),
-    });
+    upstream = await fetcher(xivapiIconUrl(iconId), iconFetchInit());
   } catch {
     return new Response(null, { status: 502 });
   }

@@ -305,11 +305,20 @@ const DIFF_CTES = `
     FROM items WHERE owner_id = ?1 AND section = ?2
   )`;
 
-/** Deletes stored rows the upload no longer has (only while the upload holds the section). */
+/**
+ * Deletes stored rows the upload no longer has (only while the upload holds the section).
+ *
+ * Row-value `NOT IN`, not a correlated `NOT EXISTS` like the insert: with `NOT EXISTS` here,
+ * SQLite's automatic index on `incoming_n` covered only `n` (almost always 1), so every stored row
+ * was compared with every uploaded one, quadratic in section size (65 ms for a 2,000-item section
+ * locally vs 13 ms now; `npm run bench`). `NOT IN` builds one index over all the columns. Every
+ * `items` column is NOT NULL, so `NOT IN` and `NOT EXISTS` mean the same thing. The insert keeps
+ * `NOT EXISTS`, where the planner already indexes every column and `NOT IN` measured slower.
+ */
 export const DELETE_REMOVED_SQL = `${DIFF_CTES}
   DELETE FROM items WHERE ${holdsSection("?4", "?5")} AND rowid IN (
-    SELECT c.rid FROM current_n c
-    WHERE NOT EXISTS (SELECT 1 FROM incoming_n i WHERE ${SAME_ROW})
+    SELECT rid FROM current_n
+    WHERE (${COLUMN_LIST}, n) NOT IN (SELECT ${COLUMN_LIST}, n FROM incoming_n)
   )`;
 
 /**

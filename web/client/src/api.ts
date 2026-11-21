@@ -1,7 +1,9 @@
 import type {
   AlsoInResponse,
+  AlsoInWire,
   ErrorResponse,
   ItemsInCommonResponse,
+  ItemsInCommonWire,
   MeResponse,
   OverviewResponse,
   OwnerItems,
@@ -9,6 +11,7 @@ import type {
   SessionResponse,
   WondrousTailsResponse,
 } from "../../src/api-types.ts";
+import { expandPlaces } from "../../src/item-overlap.ts";
 
 /** The session cookie is missing, expired or revoked. */
 export class Unauthorized extends Error {}
@@ -46,10 +49,15 @@ export const api = {
   ownerItems: (ownerId: string, signal?: AbortSignal) =>
     request<OwnerItems>(`/api/v1/owners/${encodeURIComponent(ownerId)}/items`, { signal }),
 
-  alsoIn: (ownerId: string, signal?: AbortSignal) =>
-    request<AlsoInResponse>(`/api/v1/owners/${encodeURIComponent(ownerId)}/also-in`, { signal }),
+  alsoIn: async (ownerId: string, signal?: AbortSignal): Promise<AlsoInResponse> => {
+    const wire = await request<AlsoInWire>(`/api/v1/owners/${encodeURIComponent(ownerId)}/also-in`, { signal });
+    return { items: expandPlaces(wire) };
+  },
 
-  itemsInCommon: (signal?: AbortSignal) => request<ItemsInCommonResponse>("/api/v1/items/in-common", { signal }),
+  itemsInCommon: async (signal?: AbortSignal): Promise<ItemsInCommonResponse> => {
+    const wire = await request<ItemsInCommonWire>("/api/v1/items/in-common", { signal });
+    return { holders: wire.holders, items: expandPlaces(wire) };
+  },
 };
 
 export function errorMessage(error: unknown): string {

@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import type { ItemPlace, OwnerItem } from "../../../src/api-types.ts";
 import { isSharedStorage, itemKey, otherPlaces } from "../../../src/item-overlap.ts";
-import { api } from "../api.ts";
 import { bySectionOrder, numberFormat, placeTitle, placeWhere, SECTION_LABELS } from "../format.ts";
 import { useApi } from "../hooks.ts";
+import { queries } from "../queries.ts";
 import { Accordion } from "./Accordion.tsx";
 import { Age, HqBadge } from "./Bits.tsx";
 import { ItemIcon } from "./ItemIcon.tsx";
@@ -17,12 +17,9 @@ const NO_PLACES: PlacesByItem = new Map();
 
 /** Loads one owner's items (on first expand) and shows a nested accordion per section. */
 export function OwnerItemsPanel({ ownerId }: { ownerId: string }) {
-  const state = useApi((signal) => api.ownerItems(ownerId, signal), [ownerId], {
-    cacheKey: `owner-items:${ownerId}`,
-    errorPrefix: "Couldn't load items",
-  });
+  const state = useApi(queries.ownerItems(ownerId), { errorPrefix: "Couldn't load items" });
   // "Also in" is extra: if it fails, the items still show, just without it.
-  const alsoIn = useApi((signal) => api.alsoIn(ownerId, signal), [ownerId], { cacheKey: `also-in:${ownerId}` });
+  const alsoIn = useApi(queries.alsoIn(ownerId));
   const places = useMemo(
     () => (alsoIn.status === "done" ? new Map(alsoIn.data.items.map((i) => [itemKey(i), i.places])) : NO_PLACES),
     [alsoIn],

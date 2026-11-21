@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { CONTENT_SECURITY_POLICY, handle } from "../src/app.ts";
 import { hashKey, MAX_SESSIONS_PER_MEMBER, SESSION_COOKIE } from "../src/auth.ts";
+import { compressBody } from "../src/node-server.ts";
+import { staticHeadersFile } from "../src/security-headers.ts";
 import { diskAssets } from "../src/static.ts";
 import { ADMIN_TOKEN, ALICE, addMember, call, createEnv, upload } from "./helpers.ts";
 
@@ -202,6 +205,17 @@ describe("static UI (built client)", needsBuild, () => {
     }
   });
 
+  it("ships _headers matching the app's headers, for files Cloudflare serves without the Worker", async () => {
+    const file = readFileSync(join(DIST, "_headers"), "utf8");
+    assert.equal(file, staticHeadersFile(), "rebuild: npm run build");
+    assert.ok(file.includes(`content-security-policy: ${CONTENT_SECURITY_POLICY}`));
+    // The Worker must still run for the API, or API responses would lose auth and no-store.
+    const wrangler = readFileSync(join(import.meta.dirname, "..", "wrangler.toml"), "utf8");
+    assert.match(wrangler, /^run_worker_first = \["\/api\/\*", "\/healthz"\]$/m);
+    // Like Cloudflare's asset server, the Node server doesn't serve the config file.
+    assert.equal((await handle(new Request("https://hub.test/_headers"), envWithAssets())).status, 404);
+  });
+
   it("has no inline scripts or styles that the CSP would block", async () => {
     const env = envWithAssets();
     const html = await (await handle(new Request("https://hub.test/"), env)).text();
@@ -209,5 +223,31 @@ describe("static UI (built client)", needsBuild, () => {
     assert.doesNotMatch(html, /<style\b/, "inline <style>");
     assert.doesNotMatch(html, /\son\w+=/, "inline event handler");
     assert.doesNotMatch(html, /\sstyle=/, "inline style attribute");
+  });
+});
+
+describe("Node server extras (self-hosting)", () => {
+  it("compresses text bodies for the client's Accept-Encoding, and leaves the rest alone", async () => {
+    const json = new TextEncoder().encode(JSON.stringify({ items: Array.from({ length: 500 }, (_, i) => ({ name: "Iron Ore", i })) }));
+    const br = await compressBody(json, "application/json; charset=utf-8", "gzip, deflate, br");
+    assert.equal(br?.encoding, "br");
+    assert.deepEqual(new Uint8Array(brotliDecompressSync(br!.body)), json);
+    const gz = await compressBody(json, "application/json", "gzip");
+    assert.equal(gz?.encoding, "gzip");
+    assert.deepEqual(new Uint8Array(gunzipSync(gz!.body)), json);
+    assert.equal(await compressBody(json, "application/json", null), null, "client didn't ask");
+    assert.equal(await compressBody(json, "image/png", "br"), null, "already compressed");
+    assert.equal(await compressBody(new Uint8Array(10), "text/html", "br"), null, "too small to bother");
+  });
+
+  it("revalidates static files with an ETag", needsBuild, async () => {
+    const env = envWithAssets();
+    const first = await handle(new Request("https://hub.test/"), env);
+    const etag = first.headers.get("etag");
+    assert.ok(etag, "no ETag");
+    const again = await handle(new Request("https://hub.test/", { headers: { "if-none-match": etag } }), env);
+    assert.equal(again.status, 304);
+    assert.equal(again.headers.get("content-security-policy"), CONTENT_SECURITY_POLICY);
+    assert.equal((await handle(new Request("https://hub.test/", { headers: { "if-none-match": '"stale"' } }), env)).status, 200);
   });
 });

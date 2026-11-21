@@ -1,5 +1,6 @@
 import type { Member } from "../../../src/api-types.ts";
-import crest from "../art/fc-crest.png";
+import crest from "../art/fc-crest.webp";
+import { prefetchView } from "../queries.ts";
 import { VIEWS, type View } from "../views.ts";
 import styles from "./TopBar.module.css";
 import ui from "./ui.module.css";
@@ -30,6 +31,9 @@ export function TopBar({ member, view, onNavigate, onSignOut }: Props) {
                 className={styles.tab}
                 aria-current={tab.view === view ? "page" : undefined}
                 onClick={() => onNavigate(tab.view)}
+                // Hovering or tabbing to a tab starts loading its data, a head start before the click.
+                onPointerEnter={() => prefetchView(tab.view)}
+                onFocus={() => prefetchView(tab.view)}
               >
                 {tab.label}
               </button>

@@ -7,13 +7,14 @@ compatibility_date = "2026-11-01"
 # set this to false so the unprotected *.workers.dev URL stops serving the app.
 workers_dev = true
 
-# The React UI, built by `npm run build` (vite) from client/ into dist/. run_worker_first sends
-# every request through src/worker.ts so the UI gets the same security headers as the API; the
-# worker hands non-API paths to env.ASSETS.
+# The React UI, built by `npm run build` (vite) from client/ into dist/. Only the API and
+# /healthz run the Worker; the page and its files come straight from Cloudflare's asset server
+# (no Worker run, so faster and cheaper), with the same security and cache headers from the
+# dist/_headers file the build generates (src/security-headers.ts).
 [assets]
 directory = "./dist"
 binding = "ASSETS"
-run_worker_first = true
+run_worker_first = ["/api/*", "/healthz"]
 
 [[d1_databases]]
 binding = "DB"

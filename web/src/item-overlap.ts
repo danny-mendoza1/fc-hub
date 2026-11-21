@@ -56,17 +56,71 @@ export interface ItemHolder {
   kind: "member" | "shared";
 }
 
-/** GET /api/v1/owners/:ownerId/also-in: every storage place of each item this owner holds. */
+/** Every storage place of each item an owner holds, as the client uses it (see `expandPlaces`). */
 export interface AlsoInResponse {
   /** Includes this owner's own storage places; see `otherPlaces`. */
   items: PlacedItem[];
 }
 
-/** GET /api/v1/items/in-common */
+/** "Items in common", as the client uses it (see `expandPlaces`). */
 export interface ItemsInCommonResponse {
   holders: ItemHolder[];
   /** Items with two or more holders across everyone; the browser narrows this to the chosen party. */
   items: PlacedItem[];
+}
+
+/** One section of one owner that items sit in: everything about an {@link ItemPlace} but the amounts. */
+export type PlaceSection = Omit<ItemPlace, "quantity" | "stacks">;
+
+/** A place on the wire: `[index into sections, quantity, stacks]`. */
+export type PlaceRef = [section: number, quantity: number, stacks: number];
+
+/**
+ * Places in compact form. Thousands of places share a few dozen sections, so each section's
+ * owner, member, character and capture time is sent once rather than on every place (a full FC's
+ * "in common" went from ~2.9 MB of JSON to a fraction of that). `expandPlaces` rebuilds the full shape.
+ */
+export interface PlacesWire {
+  sections: PlaceSection[];
+  items: (Omit<PlacedItem, "places"> & { places: PlaceRef[] })[];
+}
+
+/** GET /api/v1/owners/:ownerId/also-in */
+export type AlsoInWire = PlacesWire;
+
+/** GET /api/v1/items/in-common */
+export type ItemsInCommonWire = PlacesWire & { holders: ItemHolder[] };
+
+/** Packs places for the wire (the server side of {@link expandPlaces}). */
+export function compactPlaces(items: PlacedItem[]): PlacesWire {
+  const sections: PlaceSection[] = [];
+  const index = new Map<string, number>();
+  const packed = items.map(({ places, ...item }) => ({
+    ...item,
+    places: places.map(({ quantity, stacks, ...section }): PlaceRef => {
+      const key = `${section.ownerId}\u0000${section.section}`;
+      let i = index.get(key);
+      if (i === undefined) {
+        i = sections.length;
+        index.set(key, i);
+        sections.push(section);
+      }
+      return [i, quantity, stacks];
+    }),
+  }));
+  return { sections, items: packed };
+}
+
+/** Rebuilds full places from the wire form (the client side of {@link compactPlaces}). */
+export function expandPlaces(wire: PlacesWire): PlacedItem[] {
+  return wire.items.map(({ places, ...item }) => ({
+    ...item,
+    places: places.map(([section, quantity, stacks]) => {
+      const where = wire.sections[section];
+      if (!where) throw new Error(`Place refers to unknown section ${section}`);
+      return { ...where, quantity, stacks };
+    }),
+  }));
 }
 
 export interface CommonItem {
