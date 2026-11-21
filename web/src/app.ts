@@ -14,6 +14,7 @@ import {
   SESSION_COOKIE,
   sessionCookie,
 } from "./auth.ts";
+import { cleanup, deleteOwner, staleOwners } from "./cleanup.ts";
 import { validateUpload } from "./contract.ts";
 import { MeteredDatabase, ReadOnlyViolation, readOnly } from "./db/guards.ts";
 import type { SqlDatabase } from "./db/types.ts";
@@ -317,6 +318,30 @@ route("POST", "/api/v1/admin/members/:id/revoke", { access: "admin", writes: "ad
   ])) as { meta: { changes: number } }[];
   if ((revoked?.meta.changes ?? 0) === 0) throw new HttpError(404, "not_found", "No active member with that id");
   return json({ revoked: memberId });
+});
+
+/**
+ * Housekeeping: removes revoked members' data, expired sessions and old usage rows.
+ * `{"dryRun": true}` (the default) only reports what would go; `{"dryRun": false}` does it.
+ */
+route("POST", "/api/v1/admin/cleanup", { access: "admin", writes: "admin" }, async ({ request, db, now }) => {
+  // No body, or anything but an explicit false, is a dry run: deleting must be asked for.
+  const body = (await readJson(request, 4096).catch(() => ({}))) as { dryRun?: unknown };
+  return json(await cleanup(db, now, body?.dryRun !== false));
+});
+
+/** Owners not captured for `?days=` (default 180): usually dismissed retainers. A list to review, not a deletion. */
+route("GET", "/api/v1/admin/stale-owners", { access: "admin", writes: "none" }, async ({ request, db, now }) => {
+  const days = Number(new URL(request.url).searchParams.get("days") ?? 180);
+  if (!Number.isSafeInteger(days) || days < 1) throw new HttpError(400, "invalid_days", "days must be a whole number ≥ 1");
+  return json({ days, owners: await staleOwners(db, now, days) });
+});
+
+/** Removes one owner (e.g. a dismissed retainer from the stale list) with its sections and items. */
+route("DELETE", "/api/v1/admin/owners/:ownerId", { access: "admin", writes: "admin" }, async ({ db, params }) => {
+  const deleted = await deleteOwner(db, ownerIdParam(params));
+  if (!deleted) throw new HttpError(404, "not_found", "No such owner");
+  return json({ ownerId: params.ownerId, ...deleted });
 });
 
 /** Today's D1 rows written per member against the budgets, and the limits in force. */
