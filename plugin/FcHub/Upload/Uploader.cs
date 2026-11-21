@@ -27,6 +27,13 @@ public sealed class Uploader
     private readonly string pluginVersion;
     private DateTime lastUploadAt = DateTime.MinValue;
 
+    /// <summary>
+    /// Sections of owners the server rejected this session (key → hash, or null for a rejected
+    /// removal). They aren't recorded as uploaded, so they're sent again next session or on a manual
+    /// upload; until then automatic checks hold them back rather than resending them every minute.
+    /// </summary>
+    private readonly Dictionary<string, string?> heldBack = new();
+
     public Uploader(Configuration configuration, IDalamudPluginInterface pluginInterface, IPluginLog log, HubClient client, UploadChannel channel, string pluginVersion)
     {
         this.configuration = configuration;
@@ -48,6 +55,7 @@ public sealed class Uploader
     {
         channel.SettingsChanged();
         lastUploadAt = DateTime.MinValue;
+        heldBack.Clear();
         Status = Status with { Message = IsConfigured ? "Settings saved; uploading on next check." : "Not configured." };
     }
 
@@ -58,6 +66,11 @@ public sealed class Uploader
         foreach (var key in configuration.UploadedSections.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
         {
             configuration.UploadedSections.Remove(key);
+        }
+
+        foreach (var key in heldBack.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+        {
+            heldBack.Remove(key);
         }
 
         pluginInterface.SavePluginConfig(configuration);
@@ -85,7 +98,8 @@ public sealed class Uploader
             return;
         }
 
-        var uploaded = new Dictionary<string, string>(configuration.UploadedSections);
+        // A manual upload ("Upload now") also retries owners the server rejected this session.
+        var uploaded = SectionPlanner.Effective(configuration.UploadedSections, manual ? null : heldBack);
         UploadPlan? plan = null;
         channel.TrySend<UploadResult>(
             manual,
@@ -114,18 +128,26 @@ public sealed class Uploader
 
         if (plan == null || plan.IsEmpty || outcome.Value is not { } result)
         {
-            Status = Status with { LastCheckAt = now, Message = "Up to date.", IsError = false };
+            Status = Status with { LastCheckAt = now, Message = WithRejections("Up to date."), IsError = false };
             return;
         }
 
-        foreach (var (key, hash) in plan.NewHashes)
+        var accepted = plan.Outcome(result);
+        foreach (var (key, hash) in accepted.Record)
         {
             configuration.UploadedSections[key] = hash;
+            heldBack.Remove(key);
         }
 
-        foreach (var key in plan.RemovedKeys)
+        foreach (var key in accepted.Forget)
         {
             configuration.UploadedSections.Remove(key);
+            heldBack.Remove(key);
+        }
+
+        foreach (var (key, hash) in accepted.HeldBack)
+        {
+            heldBack[key] = hash;
         }
 
         pluginInterface.SavePluginConfig(configuration);
@@ -133,16 +155,32 @@ public sealed class Uploader
 
         var notes = new List<string>();
         if (result.SectionsSkippedStale.Count > 0) notes.Add($"{result.SectionsSkippedStale.Count} already newer on server");
-        if (result.OwnersRejected.Count > 0) notes.Add($"{result.OwnersRejected.Count} owner(s) rejected");
         Status = new UploadStatus(
             LastCheckAt: now,
             LastSuccessAt: now,
             LastSections: result.SectionsWritten,
             LastItems: result.ItemsWritten,
             LastBytes: outcome.Response?.CompressedBytes,
-            Message: notes.Count == 0 ? "Uploaded." : $"Uploaded ({string.Join(", ", notes)}).",
+            Message: WithRejections(notes.Count == 0 ? "Uploaded." : $"Uploaded ({string.Join(", ", notes)})."),
             IsError: false);
         log.Information("Uploaded {Sections} sections / {Items} items", result.SectionsWritten, result.ItemsWritten);
+        if (accepted.HeldBack.Count > 0)
+        {
+            log.Warning("Server rejected owners {Owners}; not recorded as uploaded", string.Join(", ", result.OwnersRejected));
+        }
+    }
+
+    /// <summary>Keeps unresolved rejections in the status line until they're accepted, not just on the upload that hit them.</summary>
+    private string WithRejections(string message)
+    {
+        if (heldBack.Count == 0)
+        {
+            return message;
+        }
+
+        var owners = heldBack.Keys.Select(SectionPlanner.OwnerOf).Distinct(StringComparer.Ordinal).Count();
+        return $"{message} The server rejected {owners} owner(s) (another member's retainer, or past the per-character owner limit); "
+            + "they're sent again next session or with Upload now.";
     }
 }
 
