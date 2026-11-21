@@ -1,7 +1,7 @@
 import type { Member } from "./auth.ts";
 import { ACTIVE_MEMBER } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
-import { claimCharacter } from "./ingest.ts";
+import { claimCharacter, commitUpload } from "./ingest.ts";
 import { clampCapturedAt } from "./validation.ts";
 import {
   bookStatus,
@@ -63,7 +63,7 @@ export async function saveWondrousTails(
     }
   }
 
-  await db.batch([
+  await commitUpload(db, [
     upsertCharacter,
     db
       .prepare(
