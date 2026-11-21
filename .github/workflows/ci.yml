@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Weekly, so a newly published advisory against something we already ship fails a run even
+  # when nobody opens a PR (Mondays 14:17 UTC).
+  schedule:
+    - cron: "17 14 * * 1"
 
 permissions:
   contents: read
@@ -17,9 +21,11 @@ jobs:
     name: Plugin build
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: 10.0.x
 
@@ -29,7 +35,7 @@ jobs:
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
           Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
-      - name: Build (Release)
+      - name: Build (Release; NuGet audit fails on high or critical, locked restore)
         run: dotnet build plugin/FcHub.slnx --configuration Release
 
       - name: Unit and contract tests
@@ -48,7 +54,7 @@ jobs:
           Get-Content pluginmaster.json
 
       - name: Upload plugin package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: FcHub
           path: plugin/FcHub/bin/x64/Release/FcHub/*
@@ -62,16 +68,23 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Install (exact versions from the lockfile)
-        run: npm ci --no-audit --no-fund
+      - name: Install (exact versions from the lockfile, no install scripts)
+        # Dependencies' install scripts are a common supply-chain attack path, and nothing CI uses
+        # needs them (esbuild's only re-checks its binary; workerd's is for `wrangler dev`).
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Audit dependencies (fail on high or critical)
+        run: npm audit --audit-level=high
 
       - name: Lint and format check (Biome)
         run: npm run lint
@@ -93,7 +106,7 @@ jobs:
 
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces
           path: web/test-results

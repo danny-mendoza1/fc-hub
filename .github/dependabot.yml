@@ -1,17 +1,45 @@
-# Weekly dependency update PRs. Runtime deps are only react/react-dom (browser bundle);
-# everything else is build tooling.
+# Dependency updates.
+#
+# Version updates wait 14 days after a release is published (cooldown), so a compromised or broken
+# release has time to be caught and pulled before we ever see a PR. Security updates are not
+# delayed: Dependabot opens those as soon as an advisory is published, regardless of cooldown
+# (requires Settings → Code security → "Dependabot security updates" to be on).
+#
+# Versions are pinned exactly (web/.npmrc save-exact, NuGet lock files, actions by commit SHA);
+# Dependabot keeps the pins current.
 version: 2
 updates:
+  # Runtime deps are only react/react-dom (browser bundle); everything else is build tooling.
   - package-ecosystem: npm
     directory: /web
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
+    versioning-strategy: increase
     groups:
       react:
         patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
       build-tooling:
         patterns: ["vite", "@vitejs/*", "typescript", "@types/node", "wrangler"]
+      test-tooling:
+        patterns: ["@playwright/test", "@biomejs/biome"]
+
+  # Plugin test packages (the plugin itself only uses the Dalamud SDK).
+  - package-ecosystem: nuget
+    directory: /plugin
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      test-tooling:
+        patterns: ["*"]
+
+  # Actions are pinned to commit SHAs with the version in a comment; Dependabot updates both.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 14
