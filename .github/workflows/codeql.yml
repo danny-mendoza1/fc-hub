@@ -1,0 +1,82 @@
+name: CodeQL
+
+# CodeQL advanced setup. This replaces GitHub's default setup, which scans C# with build-mode "none"
+# on Linux. That runner has no Dalamud reference assemblies, so calls into Dalamud,
+# FFXIVClientStructs and ImGui resolve to nothing, and GitHub reports "Low C# analysis quality".
+# Here the plugin is built for real on Windows against the same pinned Dalamud as CI, and CodeQL
+# traces that build. The other languages don't need a build and stay on build-mode "none".
+#
+# Only one setup can be active. While default setup is on, GitHub rejects this workflow's
+# results, so turn it off: Settings -> Code security -> CodeQL analysis -> Disable.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Weekly, like default setup, so new CodeQL queries run even when nothing changes
+  # (Mondays 15:23 UTC).
+  schedule:
+    - cron: "23 15 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      security-events: write # upload results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: manual
+            runner: windows-2022
+          - language: actions
+            build-mode: none
+            runner: ubuntu-latest
+          - language: javascript-typescript
+            build-mode: none
+            runner: ubuntu-latest
+          - language: python
+            build-mode: none
+            runner: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        if: matrix.language == 'csharp'
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Dalamud reference assemblies (pinned)
+        if: matrix.language == 'csharp'
+        uses: ./.github/actions/dalamud-reference
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build plugin and tests (traced by CodeQL)
+        if: matrix.build-mode == 'manual'
+        # The NuGet audit runs in ci.yml. It's off here so a newly published advisory doesn't
+        # also block code scanning.
+        run: dotnet build plugin/FcHub.slnx --configuration Release -p:NuGetAudit=false
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          # Same categories as default setup, so existing alerts carry over instead of duplicating.
+          category: /language:${{ matrix.language }}
