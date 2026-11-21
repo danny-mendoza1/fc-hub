@@ -36,7 +36,7 @@ jobs:
         run: dotnet build plugin/FcHub.slnx --configuration Release
 
       - name: Unit and contract tests
-        run: dotnet test plugin/FcHub.slnx --configuration Release --no-build
+        run: dotnet test --solution plugin/FcHub.slnx --configuration Release --no-build
 
       - name: List build output
         shell: pwsh

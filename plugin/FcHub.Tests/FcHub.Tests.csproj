@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Unit and contract tests for the plugin's pure logic (no game needed): `dotnet test plugin/FcHub.slnx`.
+    Unit and contract tests for the plugin's pure logic (no game needed); see the root README for the command.
+    They run on Microsoft Testing Platform (MTP), not VSTest: the repo-root global.json opts `dotnet test` into
+    MTP mode, which xUnit v3 4.x needs on the .NET 10 SDK. So there's no Microsoft.NET.Test.Sdk or
+    xunit.runner.visualstudio here; Visual Studio and Rider run MTP tests directly.
     Building it needs the Dalamud reference assemblies, like the plugin itself. Tests must not touch
     types that need the game at runtime (Dalamud, FFXIVClientStructs): those assemblies aren't copied here.
   -->
@@ -16,9 +19,7 @@
 
   <ItemGroup>
     <!-- Exact versions (with packages.lock.json); Dependabot bumps them. -->
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.2" />
-    <PackageReference Include="xunit.v3" Version="3.2.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup>
