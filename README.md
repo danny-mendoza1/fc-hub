@@ -30,6 +30,7 @@ Each member runs a lightweight Dalamud plugin that collects what their character
 | `plugin/` | Dalamud plugin (C#, .NET 10, Dalamud API 15) |
 | `web/` | Web API (TypeScript, Workers + D1 / Node + SQLite) and React UI (`web/client`) |
 | `docs/adr/` | Architecture decision records |
+| `docs/extending.md` | How to add a feature end to end (plugin → API → website), and the tests that go with it |
 
 ## Roadmap
 
