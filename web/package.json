@@ -19,7 +19,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply fc-hub --remote",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test:e2e": "vite build && playwright test"
+    "test:e2e": "vite build && playwright test",
+    "bench": "node scripts/bench.ts"
   },
   "dependencies": {
     "react": "19.3.1",

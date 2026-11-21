@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
-import { commonItems, type ItemPlace, otherPlaces, type PlacedItem } from "../src/item-overlap.ts";
+import { commonItems, compactPlaces, expandPlaces, type ItemPlace, otherPlaces, type PlacedItem } from "../src/item-overlap.ts";
 import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, FC, item, upload } from "./helpers.ts";
 
 const IRON_ORE = 5111;
@@ -82,7 +82,8 @@ describe("items in common / also in", () => {
   it("lists every storage place of an owner's items, stacks added up", async () => {
     const res = await call(env, "GET", `/api/v1/owners/${ALICE}/also-in`, { token: alice });
     assert.equal(res.status, 200);
-    const ore = res.body.items.find((i: PlacedItem) => i.itemId === IRON_ORE);
+    const items = expandPlaces(res.body);
+    const ore = items.find((i) => i.itemId === IRON_ORE)!;
     assert.deepEqual(
       ore.places.map((p: ItemPlace) => [p.member, p.ownerKind, p.section, p.quantity, p.stacks]),
       [
@@ -93,20 +94,20 @@ describe("items in common / also in", () => {
       ],
       "market listings aren't storage",
     );
-    assert.equal(ore.places[1].ownerName, "Sir-noodle");
+    assert.equal(ore.places[1]!.ownerName, "Sir-noodle");
     assert.deepEqual(
       otherPlaces(ore.places, ALICE, "CharacterBags").map((p: ItemPlace) => p.section),
       ["RetainerBags", "CharacterSaddleBags", "FreeCompanyBags"],
     );
 
     // NQ and HQ don't stack, so Bob's HQ potion isn't another place for Alice's NQ one.
-    const potions = res.body.items.filter((i: PlacedItem) => i.itemId === POTION);
+    const potions = items.filter((i) => i.itemId === POTION);
     assert.deepEqual(
       potions.map((i: PlacedItem) => [i.isHq, i.places.length]),
       [[false, 1]],
     );
     assert.equal(
-      res.body.items.some((i: PlacedItem) => i.itemId === SHARD),
+      items.some((i) => i.itemId === SHARD),
       false,
       "crystals are left out",
     );
@@ -124,7 +125,7 @@ describe("items in common / also in", () => {
       ],
     );
     assert.deepEqual(
-      res.body.items.map((i: PlacedItem) => i.name),
+      expandPlaces(res.body).map((i) => i.name),
       ["Iron Ore"],
       "potions differ in quality; shards are crystals",
     );
@@ -133,8 +134,9 @@ describe("items in common / also in", () => {
   it("narrows to the chosen party, grouping each member's places", async () => {
     const { body } = await call(env, "GET", "/api/v1/items/in-common", { token: alice });
     const key = (label: string) => body.holders.find((h: { label: string }) => h.label === label).key as string;
+    const items = expandPlaces(body);
 
-    const all = commonItems(body.items, new Set([key("Alice"), key("Bob"), key("FC chest")]));
+    const all = commonItems(items, new Set([key("Alice"), key("Bob"), key("FC chest")]));
     assert.equal(all.length, 1);
     assert.equal(all[0]!.totalQuantity, 15 + 99 + 7 + 999);
     assert.deepEqual(
@@ -147,10 +149,10 @@ describe("items in common / also in", () => {
     );
 
     assert.deepEqual(
-      commonItems(body.items, new Set([key("Alice"), key("FC chest")]))[0]!.holders.map((h) => h.label),
+      commonItems(items, new Set([key("Alice"), key("FC chest")]))[0]!.holders.map((h) => h.label),
       ["FC chest", "Alice"],
     );
-    assert.deepEqual(commonItems(body.items, new Set([key("Alice")])), [], "one holder alone has nothing in common");
+    assert.deepEqual(commonItems(items, new Set([key("Alice")])), [], "one holder alone has nothing in common");
   });
 
   it("validates the owner id and requires sign-in", async () => {
@@ -158,7 +160,7 @@ describe("items in common / also in", () => {
     assert.equal((await call(env, "GET", "/api/v1/items/in-common")).status, 401);
     assert.equal((await call(env, "GET", "/api/v1/owners/abc/also-in", { token: alice })).status, 400);
     const unknown = await call(env, "GET", "/api/v1/owners/123/also-in", { token: alice });
-    assert.deepEqual([unknown.status, unknown.body], [200, { items: [] }]);
+    assert.deepEqual([unknown.status, unknown.body], [200, { sections: [], items: [] }]);
   });
 
   it("leaves out revoked members", async () => {
@@ -170,5 +172,13 @@ describe("items in common / also in", () => {
       ["Alice"],
     );
     assert.deepEqual(res.body.items, []);
+  });
+
+  it("sends each section once and expands back to the same places", async () => {
+    const res = await call(env, "GET", `/api/v1/owners/${ALICE}/also-in`, { token: alice });
+    const keys = res.body.sections.map((s: ItemPlace) => `${s.ownerId}/${s.section}`);
+    assert.equal(new Set(keys).size, keys.length, "no section repeated");
+    const items: PlacedItem[] = expandPlaces(res.body);
+    assert.deepEqual(expandPlaces(compactPlaces(items)), items, "round trip");
   });
 });

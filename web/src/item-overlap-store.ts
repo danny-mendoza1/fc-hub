@@ -1,10 +1,11 @@
 import { FROM_ACTIVE_ITEMS } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import {
-  type AlsoInResponse,
+  type AlsoInWire,
+  compactPlaces,
   holderKey,
   holdersOf,
-  type ItemsInCommonResponse,
+  type ItemsInCommonWire,
   itemKey,
   type PlacedItem,
   STORAGE_SECTIONS,
@@ -68,22 +69,22 @@ function group(rows: PlaceRow[]): PlacedItem[] {
 }
 
 /** For the item drill-down: every storage place of the items (+HQ) this owner holds, in any section. */
-export async function alsoIn(db: SqlDatabase, ownerId: string): Promise<AlsoInResponse> {
+export async function alsoIn(db: SqlDatabase, ownerId: string): Promise<AlsoInWire> {
   const rows = await db
     .prepare(placesQuery("AND (i.item_id, i.is_hq) IN (SELECT item_id, is_hq FROM items WHERE owner_id = ?1)"))
     .bind(ownerId)
     .all<PlaceRow>();
   // The owner's own storage comes back too: the browser leaves out the section being viewed, and an
   // equipped item's only other place may be this same character's armoury chest.
-  return { items: group(rows.results) };
+  return compactPlaces(group(rows.results));
 }
 
 /** For "Items in common": items that two or more holders (members, FC chest, houses) store. */
-export async function itemsInCommon(db: SqlDatabase): Promise<ItemsInCommonResponse> {
+export async function itemsInCommon(db: SqlDatabase): Promise<ItemsInCommonWire> {
   const rows = await db.prepare(placesQuery("")).all<PlaceRow>();
   const all = group(rows.results);
   return {
     holders: holdersOf(all),
-    items: all.filter((item) => new Set(item.places.map(holderKey)).size >= 2),
+    ...compactPlaces(all.filter((item) => new Set(item.places.map(holderKey)).size >= 2)),
   };
 }

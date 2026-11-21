@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import type { ItemsInCommonResponse } from "../src/api-types.ts";
+import type { ItemsInCommonWire } from "../src/api-types.ts";
 
 test("comparison stays bounded when paging, searching storage, and changing quality", async ({ page }) => {
   let reads = 0;
   await page.route("**/api/v1/items/in-common", async (route) => {
     reads++;
-    const data = (await (await route.fetch()).json()) as ItemsInCommonResponse;
+    const data = (await (await route.fetch()).json()) as ItemsInCommonWire;
     const ore = data.items.find((item) => item.name === "Iron Ore");
     if (!ore) throw new Error("Missing seeded Iron Ore");
     const items = Array.from({ length: 15 }, (_, i) => ({
@@ -13,7 +13,7 @@ test("comparison stays bounded when paging, searching storage, and changing qual
       itemId: 9000 + i,
       name: `Sample ${String(i).padStart(2, "0")}`,
       isHq: i === 14,
-      places: ore.places.map((p) => ({ ...p, quantity: i + 1 })),
+      places: ore.places.map(([section, , stacks]): [number, number, number] => [section, i + 1, stacks]),
     }));
     await route.fulfill({ json: { ...data, items } });
   });

@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import type { OverviewCharacter } from "../../../src/api-types.ts";
-import { api } from "../api.ts";
 import { bySectionOrder, numberFormat, SECTION_LABELS } from "../format.ts";
 import { useApi } from "../hooks.ts";
+import { prefetchView, queries } from "../queries.ts";
 import { Accordion } from "./Accordion.tsx";
 import { Age, Holder } from "./Bits.tsx";
 import { ItemsInCommon } from "./ItemsInCommon.tsx";
@@ -10,7 +11,9 @@ import { OwnerItemsPanel } from "./OwnerItemsPanel.tsx";
 import ui from "./ui.module.css";
 
 export function OverviewView() {
-  const state = useApi((signal) => api.overview(signal), [], { cacheKey: "overview" });
+  // "Items in common" (rendered once the overview is in) starts loading now, not after it.
+  useEffect(() => prefetchView("overview"), []);
+  const state = useApi(queries.overview);
 
   return (
     <section>

@@ -18,6 +18,7 @@ npm install
 npm run typecheck      # API and client
 npm run build          # client -> dist/
 npm test               # API tests + built-client tests (in-memory SQLite)
+npm run bench          # timings, sizes and DB calls per route on a seeded FC, plus the upload diff
 
 # API + built UI on Node with a SQLite file (applies migrations automatically)
 ADMIN_TOKEN=dev-admin npm start          # http://localhost:8787
@@ -165,7 +166,7 @@ curl -X DELETE "$URL/owners/<ownerId>" -H "Authorization: Bearer $ADMIN_TOKEN" #
 
 ## Web UI
 
-Sign in with your personal key (the same one the plugin uses). The server checks it and sets a `__Host-` cookie holding a random 30-day **session token**, never the key itself ([ADR 0007](../docs/adr/0007-session-tokens.md)). The cookie is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Signing out, rotating the key or revoking the member ends the session on the server. Pages keep what they loaded for 30 seconds, so switching tabs back and forth doesn't ask the server again; reloading the page always fetches fresh data. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
+Sign in with your personal key (the same one the plugin uses). The server checks it and sets a `__Host-` cookie holding a random 30-day **session token**, never the key itself ([ADR 0007](../docs/adr/0007-session-tokens.md)). The cookie is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Signing out, rotating the key or revoking the member ends the session on the server. Pages keep what they loaded in memory: for 30 seconds it's reused as is, and for up to 10 minutes it's shown at once while a fresh copy loads in the background. A tab's data starts loading when the pointer or focus reaches the tab, and the opening tab's loads alongside the sign-in check. Reloading the page always fetches fresh data. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
 
 ### Wondrous Tails
 
@@ -183,6 +184,6 @@ One journal per member. The plugin shares the first character it sees, changeabl
 - Browser sessions can only **read**, and the cookie holds a session token rather than the key, so a stolen cookie can't upload and stops working when the member signs out, the key is rotated or the member is revoked. Uploads and admin actions need the `Authorization` header, which another site can't attach, so the cookie can't be abused for CSRF. Session endpoints also reject foreign `Origin`s.
 - Every response carries a strict Content-Security-Policy (`default-src 'none'`, same-origin scripts/styles only, no inline code, `frame-ancestors 'none'`), plus `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, COOP and (on https) HSTS. API responses are `no-store`.
 - The UI is React, which escapes rendered text; `dangerouslySetInnerHTML` is never used. Vite's build has no inline scripts (a test checks `dist/index.html`), so the CSP needs no `unsafe-inline`.
-- Content-hashed `/assets/*` are cached `immutable`; `index.html` is `no-cache`.
-- **Item icons** come from [XIVAPI](https://v2.xivapi.com)'s asset endpoint (`ui/icon/{group}/{id}_hr1.tex` → PNG) through `/api/v1/icons/:iconId`, so the CSP stays `img-src 'self'` and members' browsers never contact a third party. It is not an open proxy: members only, numeric ids only, PNG responses only, size-capped; successes are cached privately for 30 days and failures aren't cached.
+- Content-hashed `/assets/*` are cached `immutable`; `index.html` is `no-cache`. On Cloudflare only `/api/*` and `/healthz` run the Worker; the UI files come straight from the asset server, with the same headers from the `_headers` file the build writes from `src/security-headers.ts` (a test keeps the two in step).
+- **Item icons** come from [XIVAPI](https://v2.xivapi.com)'s asset endpoint (`ui/icon/{group}/{id}_hr1.tex` → PNG) through `/api/v1/icons/:iconId`, so the CSP stays `img-src 'self'` and members' browsers never contact a third party. It is not an open proxy: members only, numeric ids only, PNG responses only, size-capped; successes are cached privately for 30 days in the browser and for a year in Cloudflare's edge cache (shared by all members, so only the first view of an icon reaches XIVAPI), and failures aren't cached.
 - Planned: Cloudflare Access (zero trust) in front of the web UI, and `workers_dev = false` once a custom domain is in place.

@@ -19,7 +19,7 @@ The first UI was ~300 lines of framework-free JavaScript, which suited one searc
 
 - Vite emits external, content-hashed files with no inline scripts, so the strict CSP (`script-src 'self'`, no `unsafe-inline`) still holds. A test checks the built `index.html`.
 - React escapes rendered text by default. `dangerouslySetInnerHTML` is not used and shouldn't be.
-- Hashed `/assets/*` are served `immutable`; `index.html` is `no-cache` so deploys show up immediately.
+- Hashed `/assets/*` are served `immutable`; `index.html` is `no-cache` so deploys show up immediately. (Amended 2026-11-21: on Cloudflare these are served by the asset server without the Worker, with headers from a generated `_headers` file; see `web/src/security-headers.ts`.)
 
 ## Consequences
 

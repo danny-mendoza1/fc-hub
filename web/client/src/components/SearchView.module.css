@@ -3,6 +3,6 @@
 .status { margin: .75rem .1rem 1rem; min-height: 1.2em; }
 .chart {
   height: clamp(12rem, 31vh, 21rem); margin-top: 1.2rem; pointer-events: none;
-  background: url("../art/star-chart.jpg") center 45% / cover no-repeat;
+  background: url("../art/star-chart.webp") center 45% / cover no-repeat;
   opacity: .62; mask-image: radial-gradient(ellipse at 50% 24%, black 8%, transparent 72%);
 }

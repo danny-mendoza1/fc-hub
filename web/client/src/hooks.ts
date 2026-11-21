@@ -1,5 +1,6 @@
-import { type DependencyList, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { errorMessage, Unauthorized } from "./api.ts";
+import type { Query } from "./queries.ts";
 import { useSignedOut } from "./session.ts";
 
 /** The value, once it has stopped changing for `delayMs`. */
@@ -38,66 +39,107 @@ export function usePersistentState<T>(key: string, initial: () => T): [T, (value
 
 export type Loaded<T> = { status: "loading" } | { status: "done"; data: T } | { status: "error"; message: string };
 
-/** How long a loaded response is reused when a view is shown again (switching tabs, reopening a row). */
+/** How long a loaded response is reused as is when a view is shown again (switching tabs, reopening a row). */
 export const FRESH_FOR_MS = 30_000;
 
 /**
- * Responses kept in memory, by cache key, so going back to a tab within FRESH_FOR_MS shows it at
- * once without a request. Memory only: a page reload always starts fresh, and signing out clears it.
+ * Up to this age a cached response is shown at once while a fresh copy loads in the background
+ * (stale-while-revalidate), instead of "Loading…". Older than this, the view waits for new data.
+ */
+export const STALE_FOR_MS = 10 * 60_000;
+
+/**
+ * Responses kept in memory, by query key. Memory only: a page reload always starts fresh, and
+ * signing out clears it.
  */
 const recent = new Map<string, { at: number; data: unknown }>();
 
+/** Requests under way, by query key, so a prefetch and the view that then needs it share one request. */
+const inflight = new Map<string, Promise<unknown>>();
+
+/** Bumped on sign-out, so a response from the old session that lands afterwards isn't cached. */
+let generation = 0;
+
 export function clearApiCache(): void {
   recent.clear();
+  inflight.clear();
+  generation++;
 }
 
-function fresh<T>(key: string | undefined): T | undefined {
-  const hit = key === undefined ? undefined : recent.get(key);
-  return hit && Date.now() - hit.at < FRESH_FOR_MS ? (hit.data as T) : undefined;
+function cached<T>(key: string, maxAgeMs: number): T | undefined {
+  const hit = recent.get(key);
+  return hit && Date.now() - hit.at < maxAgeMs ? (hit.data as T) : undefined;
+}
+
+/**
+ * Loads `query`, sharing the request with anyone else asking for the same key meanwhile, and
+ * caches the result. Shared requests aren't aborted when one caller goes away: the response is
+ * cached for the next one, and these reads are small.
+ */
+function loadShared<T>(query: Query<T>): Promise<T> {
+  const pending = inflight.get(query.key);
+  if (pending) return pending as Promise<T>;
+  const started = generation;
+  const request: Promise<T> = query
+    .load(new AbortController().signal)
+    .then((data) => {
+      if (started === generation) recent.set(query.key, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => {
+      if (inflight.get(query.key) === request) inflight.delete(query.key);
+    });
+  inflight.set(query.key, request);
+  return request;
+}
+
+/** Starts loading `query` unless it's fresh or already loading. Errors are left for the view that shows it. */
+export function prefetch<T>(query: Query<T>): void {
+  if (cached(query.key, FRESH_FOR_MS) !== undefined) return;
+  loadShared(query).catch(() => undefined);
 }
 
 export interface UseApiOptions {
-  /** Reuse the response for FRESH_FOR_MS under this key (e.g. "overview", `owner-items:${id}`). */
-  cacheKey?: string;
   /** Prefixes the error message ("Couldn't load: ..."). */
   errorPrefix?: string;
 }
 
 /**
- * Loads data from the API when `deps` change: tracks loading/done/error, drops responses that
- * arrive after the component moved on (the request is aborted), signs out on a 401, and with a
- * `cacheKey` reuses a recent response instead of asking again.
+ * Loads `query` (see queries.ts): tracks loading/done/error, signs out on a 401, reuses a fresh
+ * response without asking again, and shows a stale one at once while refreshing it.
  */
-export function useApi<T>(load: (signal: AbortSignal) => Promise<T>, deps: DependencyList, options: UseApiOptions = {}): Loaded<T> {
-  const { cacheKey, errorPrefix = "Couldn't load" } = options;
+export function useApi<T>(query: Query<T>, options: UseApiOptions = {}): Loaded<T> {
+  const { errorPrefix = "Couldn't load" } = options;
   const signedOut = useSignedOut();
   const [state, setState] = useState<Loaded<T>>(() => {
-    const cached = fresh<T>(cacheKey);
-    return cached === undefined ? { status: "loading" } : { status: "done", data: cached };
+    const hit = cached<T>(query.key, STALE_FOR_MS);
+    return hit === undefined ? { status: "loading" } : { status: "done", data: hit };
   });
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `load` is a new closure every render; the caller's `deps` (and the cache key derived from them) say when it really changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `query` is a new object every render; its key says when it really changes.
   useEffect(() => {
-    const cached = fresh<T>(cacheKey);
-    if (cached !== undefined) {
-      setState({ status: "done", data: cached });
-      return;
-    }
-    const controller = new AbortController();
-    setState({ status: "loading" });
-    load(controller.signal)
-      .then((data) => {
-        if (controller.signal.aborted) return;
-        if (cacheKey !== undefined) recent.set(cacheKey, { at: Date.now(), data });
-        setState({ status: "done", data });
-      })
+    // Keep the same state object when the data hasn't changed, so memos that depend on it don't rerun.
+    const show = (data: T) => setState((prev) => (prev.status === "done" && prev.data === data ? prev : { status: "done", data }));
+    const fresh = cached<T>(query.key, FRESH_FOR_MS);
+    if (fresh !== undefined) return show(fresh);
+
+    const stale = cached<T>(query.key, STALE_FOR_MS);
+    if (stale === undefined) setState({ status: "loading" });
+    else show(stale);
+
+    let active = true;
+    loadShared(query)
+      .then((data) => active && show(data))
       .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
+        if (!active) return;
         if (error instanceof Unauthorized) return signedOut();
-        setState({ status: "error", message: `${errorPrefix}: ${errorMessage(error)}` });
+        // A failed refresh keeps showing what was already there.
+        if (stale === undefined) setState({ status: "error", message: `${errorPrefix}: ${errorMessage(error)}` });
       });
-    return () => controller.abort();
-  }, [...deps, signedOut]);
+    return () => {
+      active = false;
+    };
+  }, [query.key, signedOut]);
 
   return state;
 }

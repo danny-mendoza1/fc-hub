@@ -25,10 +25,13 @@ import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
 import { type Limits, resolveLimits } from "./limits.ts";
 import { overview, ownerItems } from "./owners.ts";
 import { MAX_QUERY_LENGTH, searchItems } from "./search.ts";
+import { CONTENT_SECURITY_POLICY, cacheControl, HSTS, SECURITY_HEADERS } from "./security-headers.ts";
 import { checkWriteBudget, recordWrites, setWriteBudgetOverride, usageReport } from "./usage.ts";
 import { ID_PATTERN } from "./validation.ts";
 import { validateWondrousTails } from "./wondrous-tails.ts";
 import { listWondrousTails, saveWondrousTails } from "./wondrous-tails-store.ts";
+
+export { CONTENT_SECURITY_POLICY };
 
 export interface AppEnv {
   DB: SqlDatabase;
@@ -437,43 +440,10 @@ function error(status: number, code: string, message: string, details?: unknown,
   return response;
 }
 
-/**
- * Strict CSP: only our own scripts/styles, no inline code, no framing, no third-party content.
- * Applied to every response (harmless on JSON) so the UI can't accidentally ship without it.
- */
-export const CONTENT_SECURITY_POLICY = [
-  "default-src 'none'",
-  "script-src 'self'",
-  "style-src 'self'",
-  "img-src 'self' data:",
-  "connect-src 'self'",
-  "form-action 'self'",
-  "base-uri 'none'",
-  "frame-ancestors 'none'",
-].join("; ");
-
-/**
- * API data is per-user and never cached. Vite's /assets/* files have content hashes in their
- * names, so they can be cached forever; everything else (index.html) is revalidated on each load
- * so a deploy shows up immediately.
- */
-function cacheControl(pathname: string, status: number): string {
-  // Icons never change for a given id; private because the route requires sign-in.
-  if (pathname.startsWith("/api/v1/icons/") && status === 200) return "private, max-age=2592000, immutable";
-  if (pathname.startsWith("/api/")) return "no-store";
-  if (pathname.startsWith("/assets/") && status === 200) return "public, max-age=31536000, immutable";
-  return "no-cache";
-}
-
 function withSecurityHeaders(response: Response, url: URL): Response {
   const headers = new Headers(response.headers);
-  headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
-  headers.set("x-content-type-options", "nosniff");
-  headers.set("x-frame-options", "DENY");
-  headers.set("referrer-policy", "no-referrer");
-  headers.set("cross-origin-opener-policy", "same-origin");
-  headers.set("permissions-policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
   headers.set("cache-control", cacheControl(url.pathname, response.status));
-  if (url.protocol === "https:") headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
+  if (url.protocol === "https:") headers.set("strict-transport-security", HSTS);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }

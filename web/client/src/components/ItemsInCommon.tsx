@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import type { CommonItem } from "../../../src/api-types.ts";
 import { commonItems, isSharedStorage, itemKey } from "../../../src/item-overlap.ts";
-import { api } from "../api.ts";
 import { numberFormat, placeWhere, SECTION_LABELS } from "../format.ts";
 import { useApi, usePartySelection } from "../hooks.ts";
+import { queries } from "../queries.ts";
 import { CommonItemRow } from "./CommonItemRow.tsx";
 import styles from "./ItemsInCommon.module.css";
 import { PartyPicker } from "./PartyPicker.tsx";
@@ -24,7 +24,7 @@ function searchText(item: CommonItem) {
 }
 
 export function ItemsInCommon() {
-  const state = useApi((signal) => api.itemsInCommon(signal), [], { cacheKey: "items-in-common" });
+  const state = useApi(queries.itemsInCommon);
   const [filter, setFilter] = useState("");
   const [quality, setQuality] = useState("all");
   const [order, setOrder] = useState("holders");

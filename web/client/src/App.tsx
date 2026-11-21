@@ -8,6 +8,7 @@ import { SearchView } from "./components/SearchView.tsx";
 import { TopBar } from "./components/TopBar.tsx";
 import { WondrousTailsView } from "./components/WondrousTailsView.tsx";
 import { clearApiCache } from "./hooks.ts";
+import { prefetchView } from "./queries.ts";
 import { SessionContext } from "./session.ts";
 import { isView, type View } from "./views.ts";
 
@@ -33,6 +34,9 @@ export function App() {
   const [{ view, query }, setRoute] = useState(readUrl);
 
   useEffect(() => {
+    // The opening tab's data loads alongside the sign-in check instead of after it (if signed
+    // out, these just fail with 401 and are dropped).
+    prefetchView(readUrl().view);
     api
       .me()
       .then(({ member }) => setAuth({ status: "signedIn", member }))

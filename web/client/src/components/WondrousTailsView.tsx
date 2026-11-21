@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import type { BookStatus, CommonDuty, WtBook, WtSlot } from "../../../src/api-types.ts";
 import { commonDuties, isActive } from "../../../src/wondrous-tails.ts";
-import { api } from "../api.ts";
 import { ago } from "../format.ts";
 import { useApi, usePartySelection } from "../hooks.ts";
+import { queries } from "../queries.ts";
 import { ItemIcon } from "./ItemIcon.tsx";
 import { PartyPicker } from "./PartyPicker.tsx";
 import ui from "./ui.module.css";
@@ -27,7 +27,7 @@ const dateTime = new Intl.DateTimeFormat(undefined, {
 });
 
 export function WondrousTailsView() {
-  const state = useApi((signal) => api.wondrousTails(signal), [], { cacheKey: "wondrous-tails" });
+  const state = useApi(queries.wondrousTails);
 
   const books = useMemo(() => (state.status === "done" ? state.data.books : []), [state]);
   const memberIds = useMemo(() => books.map((b) => b.memberId), [books]);

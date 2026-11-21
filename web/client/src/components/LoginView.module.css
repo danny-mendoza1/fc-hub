@@ -2,7 +2,7 @@
   position: relative; isolation: isolate; overflow: hidden; margin: clamp(1rem, 6vh, 4rem) auto;
   padding: clamp(1.5rem, 5vw, 4rem); min-height: 26rem; display: grid; align-content: center;
   background: linear-gradient(90deg, #090f20 1%, rgba(9,15,32,.96) 32%, rgba(9,15,32,.53) 53%, transparent 72%),
-    url("../art/heimdall.jpg") center right / cover no-repeat, var(--panel);
+    url("../art/heimdall.webp") center right / cover no-repeat, var(--panel);
   border: 1px solid var(--border); border-radius: var(--radius); border-top-color: var(--gold);
 }
 .content { max-width: 22rem; }
@@ -13,6 +13,6 @@
 .label { font-size: .9rem; color: var(--text); }
 @media (max-width: 700px) {
   .login { padding: 0; display: block; background: var(--panel); min-height: 0; }
-  .login::before { content: ""; display: block; aspect-ratio: 5/2; background: url("../art/heimdall.jpg") center / cover; }
+  .login::before { content: ""; display: block; aspect-ratio: 5/2; background: url("../art/heimdall.webp") center / cover; }
   .content { padding: 1.4rem; max-width: none; }
 }
