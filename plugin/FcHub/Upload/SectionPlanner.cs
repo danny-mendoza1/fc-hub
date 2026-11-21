@@ -13,6 +13,33 @@ public static class SectionPlanner
 {
     public static string Key(string contentId, string ownerId, string section) => $"{contentId}/{ownerId}/{section}";
 
+    /// <summary>The owner id in a <see cref="Key"/> (ids are decimal, so they never contain '/').</summary>
+    public static string OwnerOf(string key) => key.Split('/', 3)[1];
+
+    /// <summary>
+    /// What a plan should treat as already uploaded: the hashes the server accepted, plus the
+    /// sections it rejected this session (<paramref name="heldBack"/>; see <see cref="UploadPlan.Outcome"/>),
+    /// so automatic checks don't resend a rejected owner every minute. Pass null to retry them.
+    /// </summary>
+    public static Dictionary<string, string> Effective(IReadOnlyDictionary<string, string> uploaded, IReadOnlyDictionary<string, string?>? heldBack)
+    {
+        var effective = new Dictionary<string, string>(uploaded);
+        foreach (var (key, hash) in heldBack ?? new Dictionary<string, string?>())
+        {
+            if (hash is null)
+            {
+                // A rejected removal: leave it out so the planner doesn't send the empty section again.
+                effective.Remove(key);
+            }
+            else
+            {
+                effective[key] = hash;
+            }
+        }
+
+        return effective;
+    }
+
     public static UploadPlan Plan(InventorySnapshot snapshot, IReadOnlyDictionary<string, string> uploaded, string pluginVersion)
     {
         var contentId = snapshot.Character.ContentId;
@@ -73,8 +100,8 @@ public static class SectionPlanner
         ContentHash.Of(items, prefix: $"{kind}\u0000{name}\u0000");
 }
 
-/// <param name="NewHashes">Hashes to record once the server accepts the upload.</param>
-/// <param name="RemovedKeys">Section keys to forget once the server accepts the upload.</param>
+/// <param name="NewHashes">Hashes to record once the server accepts the upload (see <see cref="UploadPlan.Outcome"/>).</param>
+/// <param name="RemovedKeys">Section keys to forget once the server accepts the upload (see <see cref="UploadPlan.Outcome"/>).</param>
 public sealed record UploadPlan(
     UploadPayload Payload,
     IReadOnlyDictionary<string, string> NewHashes,
@@ -83,4 +110,51 @@ public sealed record UploadPlan(
     int ItemCount)
 {
     public bool IsEmpty => SectionCount == 0;
+
+    /// <summary>
+    /// Splits the plan by the server's answer. Sections of rejected owners weren't stored, so their
+    /// hashes must not be recorded, or they'd never be sent again (e.g. after an admin raises the
+    /// per-character owner limit). Everything else was stored, or skipped because the server already
+    /// holds newer data, which won't change by resending, so it's recorded.
+    /// </summary>
+    public PlanOutcome Outcome(UploadResult result)
+    {
+        var rejected = new HashSet<string>(result.OwnersRejected ?? Array.Empty<string>(), StringComparer.Ordinal);
+        var record = new Dictionary<string, string>();
+        var forget = new List<string>();
+        var heldBack = new Dictionary<string, string?>();
+        foreach (var (key, hash) in NewHashes)
+        {
+            if (rejected.Contains(SectionPlanner.OwnerOf(key)))
+            {
+                heldBack[key] = hash;
+            }
+            else
+            {
+                record[key] = hash;
+            }
+        }
+
+        foreach (var key in RemovedKeys)
+        {
+            if (rejected.Contains(SectionPlanner.OwnerOf(key)))
+            {
+                heldBack[key] = null;
+            }
+            else
+            {
+                forget.Add(key);
+            }
+        }
+
+        return new PlanOutcome(record, forget, heldBack);
+    }
 }
+
+/// <param name="Record">Section hashes the server accepted (or already had newer data for).</param>
+/// <param name="Forget">Removed sections the server cleared.</param>
+/// <param name="HeldBack">Sections of owners the server rejected: their hash, or null for a removal. Not recorded.</param>
+public sealed record PlanOutcome(
+    IReadOnlyDictionary<string, string> Record,
+    IReadOnlyList<string> Forget,
+    IReadOnlyDictionary<string, string?> HeldBack);
