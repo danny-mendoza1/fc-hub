@@ -29,11 +29,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Download Dalamud reference assemblies
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
-          Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+      - name: Dalamud reference assemblies (pinned)
+        uses: ./.github/actions/dalamud-reference
 
       - name: Build (Release; NuGet audit fails on high or critical, locked restore)
         run: dotnet build plugin/FcHub.slnx --configuration Release
