@@ -1,0 +1,31 @@
+name: Dalamud reference assemblies
+description: >
+  Puts the Dalamud build the plugin compiles against where Dalamud.NET.Sdk looks for it
+  (%AppData%\XIVLauncher\addon\Hooks\dev). Pinned to one commit of goatcorp/dalamud-distrib and
+  checked by SHA-256 (ADR 0006), so CI builds the same thing until we choose to move.
+
+# To move to a newer Dalamud (usually after a game patch or a new API level):
+#   1. git ls-remote https://github.com/goatcorp/dalamud-distrib refs/heads/main   -> the commit
+#   2. curl -sL https://raw.githubusercontent.com/goatcorp/dalamud-distrib/<commit>/latest.zip | sha256sum
+#      and curl -sL .../<commit>/version for the version number
+#   3. Update the three values below in one PR; CI shows whether the plugin still builds.
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify Dalamud
+      shell: pwsh
+      env:
+        DALAMUD_VERSION: "15.0.4.1"
+        DALAMUD_DISTRIB_COMMIT: "74c1ebada2e4b2036d39c2f1ff52f1d4b95180fa"
+        DALAMUD_ZIP_SHA256: "3f0d8b64d2ed7c868b57541c81f5308692eb69bb856517fa3d14955fd056e815"
+      run: |
+        $url = "https://raw.githubusercontent.com/goatcorp/dalamud-distrib/$env:DALAMUD_DISTRIB_COMMIT/latest.zip"
+        Invoke-WebRequest -Uri $url -OutFile dalamud.zip
+        $hash = (Get-FileHash dalamud.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($hash -ne $env:DALAMUD_ZIP_SHA256) {
+          throw "Dalamud $env:DALAMUD_VERSION download doesn't match its pinned SHA-256 (got $hash)."
+        }
+        Expand-Archive -Force dalamud.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+        Remove-Item dalamud.zip
+        Write-Host "Dalamud $env:DALAMUD_VERSION reference assemblies ready (commit $env:DALAMUD_DISTRIB_COMMIT)."
