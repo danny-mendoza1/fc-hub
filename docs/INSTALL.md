@@ -45,7 +45,7 @@ FC Hub also shares your **Wondrous Tails** journal so the FC can find duties you
 
 ## 6. Search
 
-Open the FC Hub website, sign in with the same key, and search. **Who's uploaded** shows how fresh everyone's data is.
+Open the FC Hub website, sign in with the same key, and search. **Inventories** shows how fresh everyone's data is.
 
 ## Troubleshooting
 

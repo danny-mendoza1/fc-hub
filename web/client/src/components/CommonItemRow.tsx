@@ -6,6 +6,8 @@ import { ItemIcon } from "./ItemIcon.tsx";
 
 export function CommonItemRow({ item }: { item: CommonItem }) {
   const name = item.name || `Item #${item.itemId}`;
+  const preview = item.holders.slice(0, 2);
+  const remaining = item.holders.length - preview.length;
   return (
     <li className={styles.card}>
       <details>
@@ -15,15 +17,24 @@ export function CommonItemRow({ item }: { item: CommonItem }) {
             <span className={styles.name} title={name}>
               {name}
             </span>
-            <span className={styles.meta}>
-              {item.isHq && <HqBadge />} {item.holders.length} holders
-            </span>
+            {item.isHq && <HqBadge />}
           </span>
           <span className={styles.total}>
             <strong>{numberFormat.format(item.totalQuantity)}</strong> total
           </span>
           <span aria-hidden="true" className={styles.chevron}>
             ›
+          </span>
+          <span className={styles.preview}>
+            {preview.map((holder) => (
+              <span key={holder.key} className={styles.entry}>
+                <span className={styles.holderName} title={holder.label}>
+                  {holder.label}
+                </span>{" "}
+                <b>{numberFormat.format(holder.quantity)}</b>
+              </span>
+            ))}
+            {remaining > 0 && <span className={styles.more}>+{remaining} more</span>}
           </span>
         </summary>
         <div className={styles.breakdown}>

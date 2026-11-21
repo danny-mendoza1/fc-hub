@@ -65,7 +65,7 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/` | Web UI (search + "who's uploaded"), served from the built `dist/` |
+| `GET` | `/` | Web UI (search + "Inventories"), served from the built `dist/` |
 | `POST` | `/api/v1/session` | Browser sign-in: `{"apiKey"}` → HttpOnly cookie holding a 30-day session token (not the key) |
 | `DELETE` | `/api/v1/session` | Sign out (ends the session on the server too) |
 | `GET` | `/healthz` | Liveness |
@@ -73,7 +73,7 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `POST` | `/api/v1/snapshots` | Upload changed sections (JSON, optionally `Content-Encoding: gzip`, ≤ 4 MB decompressed); counts against the daily write budget |
 | `GET` | `/api/v1/search?q=` | Items by name substring or exact item id, grouped item → owner → locations |
 | `GET` | `/api/v1/overview` | Every character's owners and per-section freshness |
-| `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Who's uploaded" accordions) |
+| `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Inventories" accordions) |
 | `GET` | `/api/v1/owners/:ownerId/also-in` | Every storage place of each item (+HQ) this owner holds (the "Also in" lines) |
 | `GET` | `/api/v1/items/in-common` | Holders (members, FC chest, houses) and the items two or more of them store; the party is chosen in the browser |
 | `GET` | `/api/v1/icons/:iconId` | Item icon PNG, proxied from XIVAPI (see below) |
@@ -165,7 +165,7 @@ curl -X DELETE "$URL/owners/<ownerId>" -H "Authorization: Bearer $ADMIN_TOKEN" #
 
 ## Web UI
 
-Sign in with your personal key (the same one the plugin uses). The server checks it and sets a `__Host-` cookie holding a random 30-day **session token**, never the key itself ([ADR 0007](../docs/adr/0007-session-tokens.md)). The cookie is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Signing out, rotating the key or revoking the member ends the session on the server. Pages keep what they loaded for 30 seconds, so switching tabs back and forth doesn't ask the server again; reloading the page always fetches fresh data. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Who's uploaded** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
+Sign in with your personal key (the same one the plugin uses). The server checks it and sets a `__Host-` cookie holding a random 30-day **session token**, never the key itself ([ADR 0007](../docs/adr/0007-session-tokens.md)). The cookie is `HttpOnly`, `Secure` and `SameSite=Strict`, so page scripts can't read it and other sites can't send it. Signing out, rotating the key or revoking the member ends the session on the server. Pages keep what they loaded for 30 seconds, so switching tabs back and forth doesn't ask the server again; reloading the page always fetches fresh data. Search is by name or item id, with results grouped item → holder → slot and stale data (older than 7 days) highlighted. **Inventories** shows how fresh each character's, retainer's, FC chest's and house's data is, and every row expands into its sections (Inventory, Armoury chest, Retainer bags…) and then the items with icons and exact slots, loaded on demand.
 
 ### Wondrous Tails
 

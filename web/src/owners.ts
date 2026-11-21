@@ -1,7 +1,7 @@
 import { ACTIVE_MEMBER } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 
-/** Queries behind "Who's uploaded": who has uploaded what, and one owner's items. */
+/** Queries behind "Inventories": who has uploaded what, and one owner's items. */
 
 export interface OverviewOwner {
   ownerId: string;

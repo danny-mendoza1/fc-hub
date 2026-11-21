@@ -1,7 +1,7 @@
 /** The app's tabs, in order: the top bar renders them and the URL (?view=) is checked against them. */
 export const VIEWS = [
   { view: "search", label: "Search" },
-  { view: "overview", label: "Who's uploaded" },
+  { view: "overview", label: "Inventories" },
   { view: "wt", label: "Wondrous Tails" },
 ] as const;
 
