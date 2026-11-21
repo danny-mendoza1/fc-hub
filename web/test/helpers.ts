@@ -3,6 +3,7 @@ import { type AppEnv, handle } from "../src/app.ts";
 import type { Upload, UploadItem, UploadOwner } from "../src/contract.ts";
 import { applyMigrations } from "../src/db/migrate.ts";
 import { NodeSqliteDatabase } from "../src/db/sqlite.ts";
+import type { SqlDatabase, SqlStatement } from "../src/db/types.ts";
 import type { Fetcher } from "../src/icons.ts";
 
 export const ADMIN_TOKEN = "test-admin-token";
@@ -30,6 +31,43 @@ export function envWith(vars: Partial<Record<`LIMIT_${string}` | "WRITES_ENABLED
 /** Rows inserted, updated or deleted on this connection so far (SQLite's own counter). */
 export function totalChanges(env: TestEnv): number {
   return Number((env.DB.raw.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
+}
+
+/**
+ * The database as a Worker sees D1: every call is a network round trip, so other requests run in
+ * between. node:sqlite answers synchronously, which hides races between a request's reads and its
+ * batch; this wrapper puts a macrotask hop before every call so concurrent requests interleave.
+ * The batch itself still runs atomically, as D1's does.
+ */
+export function withRoundTrips(db: SqlDatabase): SqlDatabase {
+  const hop = () => new Promise<void>((resolve) => setTimeout(resolve, 1));
+  const unwrap = new WeakMap<SqlStatement, SqlStatement>();
+  const wrap = (inner: SqlStatement): SqlStatement => {
+    const statement: SqlStatement = {
+      bind: (...values) => wrap(inner.bind(...values)),
+      first: async () => {
+        await hop();
+        return inner.first();
+      },
+      all: async () => {
+        await hop();
+        return inner.all();
+      },
+      run: async () => {
+        await hop();
+        return inner.run();
+      },
+    } as SqlStatement;
+    unwrap.set(statement, inner);
+    return statement;
+  };
+  return {
+    prepare: (sql) => wrap(db.prepare(sql)),
+    batch: async (statements) => {
+      await hop();
+      return db.batch(statements.map((s) => unwrap.get(s) ?? s));
+    },
+  };
 }
 
 /** Stands in for XIVAPI: every icon is a (tiny) PNG. */
