@@ -1,6 +1,7 @@
 import type { Member } from "./auth.ts";
 import type { Upload, UploadItem } from "./contract.ts";
 import type { SqlDatabase, SqlStatement } from "./db/types.ts";
+import { HttpError } from "./http-error.ts";
 import type { Limits } from "./limits.ts";
 import { clampCapturedAt } from "./validation.ts";
 
@@ -25,14 +26,6 @@ export interface IngestResult {
   sectionsSkippedStale: string[];
   /** Owners that belong to someone else's character, or new owners past the per-character cap. */
   ownersRejected: string[];
-}
-
-export class IngestError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
 }
 
 export async function ingestUpload(
@@ -140,7 +133,7 @@ export async function claimCharacter(
     .bind(character.contentId)
     .first<{ member_id: number }>();
   if (claim && claim.member_id !== member.id) {
-    throw new IngestError(403, "This character is registered to another member.");
+    throw new HttpError(403, "rejected", "This character is registered to another member.");
   }
 
   return db

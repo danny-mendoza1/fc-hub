@@ -72,7 +72,7 @@ export function WondrousTailsView() {
 
       <CommonDuties duties={common} activeInParty={activeInParty} />
 
-      <h2 className={styles.heading}>Journals</h2>
+      <h2 className={ui.sectionHeading}>Journals</h2>
       <p className={`${ui.muted} ${styles.legend}`}>
         <span className={styles.legendSwatch} aria-hidden="true" /> needed by two or more of the party · faded = already done
       </p>
@@ -87,18 +87,18 @@ export function WondrousTailsView() {
 
 function CommonDuties({ duties, activeInParty }: { duties: CommonDuty[]; activeInParty: number }) {
   return (
-    <article className={`${ui.card} ${styles.common}`}>
-      <h2 className={styles.heading}>Duties in common</h2>
+    <article className={`${ui.card} ${ui.inCommonCard}`}>
+      <h2 className={ui.sectionHeading}>Duties in common</h2>
       {activeInParty < 2 ? (
         <p className={ui.muted}>Pick at least two party members who have a current journal.</p>
       ) : duties.length === 0 ? (
         <p className={ui.muted}>Nothing in common that someone still needs. Try a different party.</p>
       ) : (
-        <ul className={styles.commonList}>
+        <ul className={ui.rankedList}>
           {duties.map((d) => (
-            <li key={d.orderId} className={styles.commonRow}>
+            <li key={d.orderId} className={ui.rankedRow}>
               <ItemIcon iconId={d.iconId} size="large" />
-              <div className={styles.commonBody}>
+              <div className={ui.rankedBody}>
                 <div className={styles.dutyName}>{d.name}</div>
                 <div className={styles.who}>
                   <span className={styles.needs}>Needs: {d.needs.map((n) => n.member).join(", ")}</span>
@@ -112,7 +112,7 @@ function CommonDuties({ duties, activeInParty }: { duties: CommonDuty[]; activeI
                   )}
                 </div>
               </div>
-              <span className={styles.count} title={`${d.needs.length} of the party still need this`}>
+              <span className={ui.countPill} title={`${d.needs.length} of the party still need this`}>
                 {d.needs.length}
               </span>
             </li>

@@ -3,9 +3,11 @@
  * imports, so the UI and the server can't silently disagree.
  */
 import type { Member } from "./auth.ts";
-import type { OverviewCharacter, SearchHit } from "./search.ts";
+import type { OverviewCharacter } from "./owners.ts";
+import type { SearchHit } from "./search.ts";
 
-export type { Holding, OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection, SearchHit } from "./search.ts";
+export type { OverviewCharacter, OverviewOwner, OwnerItem, OwnerItems, OwnerSection } from "./owners.ts";
+export type { Holding, SearchHit } from "./search.ts";
 export type { Member } from "./auth.ts";
 export { MAX_QUERY_LENGTH } from "./search.ts";
 export type { AlsoInResponse, CommonItem, ItemHolder, ItemPlace, ItemsInCommonResponse, PlacedItem } from "./item-overlap.ts";

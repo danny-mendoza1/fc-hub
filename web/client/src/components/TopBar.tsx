@@ -1,14 +1,8 @@
 import type { Member } from "../../../src/api-types.ts";
+import { type View, VIEWS } from "../views.ts";
 import ui from "./ui.module.css";
 import styles from "./TopBar.module.css";
 
-export type View = "search" | "overview" | "wt";
-
-const TABS: { view: View; label: string }[] = [
-  { view: "search", label: "Search" },
-  { view: "overview", label: "Who's uploaded" },
-  { view: "wt", label: "Wondrous Tails" },
-];
 
 interface Props {
   member: Member | null;
@@ -26,7 +20,7 @@ export function TopBar({ member, view, onNavigate, onSignOut }: Props) {
       {member && (
         <>
           <nav className={styles.tabs}>
-            {TABS.map((tab) => (
+            {VIEWS.map((tab) => (
               <button
                 key={tab.view}
                 type="button"

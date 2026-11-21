@@ -1,20 +1,9 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
-import { type AppEnv, handle, routeTable } from "../src/app.ts";
+import { routeTable } from "../src/app.ts";
 import { readOnly } from "../src/db/guards.ts";
 import { DEFAULT_LIMITS, resolveLimits } from "../src/limits.ts";
-import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, item, upload } from "./helpers.ts";
-
-type Env = ReturnType<typeof createEnv>;
-
-/** Rows inserted, updated or deleted on this connection so far (SQLite's own counter). */
-function totalChanges(env: Env): number {
-  return Number((env.DB.raw.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
-}
-
-function envWith(vars: Partial<Record<`LIMIT_${string}` | "WRITES_ENABLED", string>> = {}): Env {
-  return Object.assign(createEnv(), vars) as Env & AppEnv;
-}
+import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, envWith, fakeIconFetch, item, send, type TestEnv, totalChanges, upload } from "./helpers.ts";
 
 const aliceBags = (quantity = 10) =>
   upload(ALICE, "Alice Example", [
@@ -37,7 +26,7 @@ const SAMPLE_PARAMS: Record<string, string> = { ownerId: ALICE, iconId: "1000", 
 describe("route policies", () => {
   it("every GET route is read-only: it runs, and writes nothing", async () => {
     const env = createEnv();
-    env.FETCH = async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } });
+    env.FETCH = fakeIconFetch;
     const alice = await addMember(env, "Alice");
     await call(env, "POST", "/api/v1/snapshots", { token: alice, body: aliceBags() });
 
@@ -50,7 +39,7 @@ describe("route policies", () => {
       });
       const token = r.policy.access === "admin" ? ADMIN_TOKEN : r.policy.access === "public" ? undefined : alice;
       const before = totalChanges(env);
-      const res = await send(env, "GET", path, token);
+      const res = await send(env, "GET", path, { token });
       assert.ok(res.status < 500, `${r.path} failed with ${res.status}: ${await res.text()}`);
       assert.equal(totalChanges(env) - before, 0, `${r.path} wrote to the database`);
     }
@@ -268,14 +257,8 @@ describe("indexes", () => {
   });
 });
 
-/** The raw Response (call() parses JSON; icons are PNG, and Retry-After is a header). */
-function send(env: Env, method: string, path: string, token?: string, body?: unknown): Promise<Response> {
-  const headers = new Headers(body === undefined ? {} : { "content-type": "application/json" });
-  if (token) headers.set("authorization", `Bearer ${token}`);
-  return handle(new Request(`http://test.local${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }), env);
-}
-
-async function refusedUpload(env: Env, token: string, body: unknown) {
-  const response = await send(env, "POST", "/api/v1/snapshots", token, body);
+/** Keeps the Retry-After header, which call() drops. */
+async function refusedUpload(env: TestEnv, token: string, body: unknown) {
+  const response = await send(env, "POST", "/api/v1/snapshots", { token, body });
   return { status: response.status, headers: response.headers, body: await response.json() };
 }

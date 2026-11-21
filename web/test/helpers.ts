@@ -1,12 +1,15 @@
 import { join } from "node:path";
 import { type AppEnv, handle } from "../src/app.ts";
+import type { Fetcher } from "../src/icons.ts";
 import type { Upload, UploadItem, UploadOwner } from "../src/contract.ts";
 import { applyMigrations } from "../src/db/migrate.ts";
 import { NodeSqliteDatabase } from "../src/db/sqlite.ts";
 
 export const ADMIN_TOKEN = "test-admin-token";
 
-export function createEnv(): AppEnv & { DB: NodeSqliteDatabase } {
+export type TestEnv = AppEnv & { DB: NodeSqliteDatabase };
+
+export function createEnv(): TestEnv {
   const db = new NodeSqliteDatabase(":memory:");
   applyMigrations(db, join(import.meta.dirname, "..", "migrations"));
   return { DB: db, ADMIN_TOKEN };
@@ -19,7 +22,21 @@ export interface CallOptions {
   headers?: Record<string, string>;
 }
 
-export async function call(env: AppEnv, method: string, path: string, options: CallOptions = {}): Promise<{ status: number; body: any }> {
+/** A test env with limit overrides applied, as wrangler.toml [vars] would (see src/limits.ts). */
+export function envWith(vars: Partial<Record<`LIMIT_${string}` | "WRITES_ENABLED", string>>): TestEnv {
+  return Object.assign(createEnv(), vars);
+}
+
+/** Rows inserted, updated or deleted on this connection so far (SQLite's own counter). */
+export function totalChanges(env: TestEnv): number {
+  return Number((env.DB.raw.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
+}
+
+/** Stands in for XIVAPI: every icon is a (tiny) PNG. */
+export const fakeIconFetch: Fetcher = async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } });
+
+/** The raw Response, for status/headers or non-JSON bodies (icons); call() parses JSON. */
+export function send(env: AppEnv, method: string, path: string, options: CallOptions = {}): Promise<Response> {
   const headers = new Headers(options.headers);
   if (options.token) headers.set("authorization", `Bearer ${options.token}`);
   let body: BodyInit | undefined = options.rawBody;
@@ -27,7 +44,11 @@ export async function call(env: AppEnv, method: string, path: string, options: C
     headers.set("content-type", "application/json");
     body = JSON.stringify(options.body);
   }
-  const response = await handle(new Request(`http://test.local${path}`, { method, headers, body }), env);
+  return handle(new Request(`http://test.local${path}`, { method, headers, body }), env);
+}
+
+export async function call(env: AppEnv, method: string, path: string, options: CallOptions = {}): Promise<{ status: number; body: any }> {
+  const response = await send(env, method, path, options);
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }

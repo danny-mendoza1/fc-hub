@@ -34,3 +34,19 @@
 }
 .chip[aria-pressed="true"] { color: var(--text); border-color: var(--gold); background: var(--panel-2); }
 .chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* Ranked "in common" lists (Wondrous Tails duties, Items in common): a card with a heading,
+   one row per entry, and a gold count pill on the right. */
+.inCommonCard { margin-bottom: 20px; }
+.sectionHeading { font-size: 16px; margin: 0 0 10px; }
+.rankedList { list-style: none; margin: 0; padding: 0; }
+.rankedRow {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 4px; border-top: 1px solid var(--border);
+}
+.rankedBody { flex: 1; min-width: 0; }
+.countPill {
+  flex: none; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--gold); color: #1b1b1b; font-weight: 700;
+}

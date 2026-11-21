@@ -2,11 +2,13 @@ import { type AuthedMember, authenticateMember, clearSessionCookie, createMember
 import { validateUpload } from "./contract.ts";
 import { MeteredDatabase, ReadOnlyViolation, readOnly } from "./db/guards.ts";
 import type { SqlDatabase } from "./db/types.ts";
-import { IngestError, ingestUpload } from "./ingest.ts";
+import { HttpError } from "./http-error.ts";
+import { ingestUpload } from "./ingest.ts";
 import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
 import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
 import { type Limits, resolveLimits } from "./limits.ts";
-import { MAX_QUERY_LENGTH, overview, ownerItems, searchItems } from "./search.ts";
+import { overview, ownerItems } from "./owners.ts";
+import { MAX_QUERY_LENGTH, searchItems } from "./search.ts";
 import { ID_PATTERN } from "./validation.ts";
 import { checkWriteBudget, recordWrites, setWriteBudgetOverride, usageReport } from "./usage.ts";
 import { validateWondrousTails } from "./wondrous-tails.ts";
@@ -115,7 +117,6 @@ async function dispatch(request: Request, env: AppEnv, url: URL): Promise<Respon
     return error(404, "not_found", "Not found");
   } catch (err) {
     if (err instanceof HttpError) return error(err.status, err.code, err.message, err.details, err.headers);
-    if (err instanceof IngestError) return error(err.status, "rejected", err.message);
     // A read route tried to write: a bug, never something the caller did. Fail loudly in logs.
     if (err instanceof ReadOnlyViolation) console.error("Read-only violation", err);
     else console.error("Unhandled error", err);
@@ -288,20 +289,6 @@ route("PUT", "/api/v1/admin/members/:id/write-budget", { access: "admin", writes
 });
 
 // --- helpers ------------------------------------------------------------------------------
-
-export class HttpError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly details?: unknown;
-  readonly headers?: Record<string, string>;
-  constructor(status: number, code: string, message: string, details?: unknown, headers?: Record<string, string>) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.details = details;
-    this.headers = headers;
-  }
-}
 
 function ownerIdParam(params: Record<string, string>): string {
   const ownerId = params.ownerId ?? "";
