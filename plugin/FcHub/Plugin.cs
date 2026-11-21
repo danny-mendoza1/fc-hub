@@ -22,6 +22,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AllaganToolsIpc allagan;
     private readonly OwnerNameTracker names;
     private readonly HubClient hubClient;
+    private readonly UploadChannel uploadChannel;
     private readonly Uploader uploader;
     private readonly SyncService sync;
     private readonly WondrousTailsSync wondrousTails;
@@ -49,10 +50,11 @@ public sealed class Plugin : IDalamudPlugin
         names = new OwnerNameTracker(framework, playerState, pluginInterface, log, configuration);
         var builder = new SnapshotBuilder(allagan, names, playerState, dataManager, version);
         hubClient = new HubClient(version);
-        uploader = new Uploader(configuration, pluginInterface, framework, log, hubClient, version);
+        uploadChannel = new UploadChannel(configuration, framework, log);
+        uploader = new Uploader(configuration, pluginInterface, log, hubClient, uploadChannel, version);
         sync = new SyncService(framework, chat, log, allagan, builder, uploader, pluginInterface.ConfigDirectory);
         wondrousTails = new WondrousTailsSync(
-            framework, clientState, playerState, pluginInterface, log, configuration, hubClient, new WondrousTailsReader(dataManager), version);
+            framework, clientState, playerState, pluginInterface, log, configuration, hubClient, uploadChannel, new WondrousTailsReader(dataManager), version);
 
         configWindow = new ConfigWindow(configuration, pluginInterface, playerState, hubClient, uploader, sync, wondrousTails);
         mainWindow = new MainWindow(allagan, names, sync, uploader, wondrousTails, configuration, configWindow.Toggle);
@@ -103,7 +105,7 @@ public sealed class Plugin : IDalamudPlugin
 
         sync.Dispose();
         wondrousTails.Dispose();
-        uploader.Dispose();
+        uploadChannel.Dispose();
         configWindow.Dispose();
         hubClient.Dispose();
         names.Dispose();

@@ -91,7 +91,7 @@ public sealed class HubClient : IDisposable
                     return new HubResponse<T>(true, status, value, null, compressedBytes);
                 }
 
-                return new HubResponse<T>(false, status, default, DescribeError(status, body), compressedBytes);
+                return new HubResponse<T>(false, status, default, DescribeError(status, body), compressedBytes, RetryAfter(response));
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -102,6 +102,24 @@ public sealed class HubClient : IDisposable
                 return new HubResponse<T>(false, 0, default, $"Network error: {e.Message}", compressedBytes);
             }
         }
+    }
+
+    /// <summary>How long the server asked us to wait (429 daily budget, 503 read-only mode), if it said.</summary>
+    private static TimeSpan? RetryAfter(HttpResponseMessage response)
+    {
+        var header = response.Headers.RetryAfter;
+        if (header?.Delta is { } delta)
+        {
+            return delta;
+        }
+
+        if (header?.Date is { } date)
+        {
+            var wait = date - DateTimeOffset.UtcNow;
+            return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
+        }
+
+        return null;
     }
 
     private static string DescribeError(int status, string body)
@@ -127,4 +145,4 @@ public sealed class HubClient : IDisposable
     public void Dispose() => http.Dispose();
 }
 
-public sealed record HubResponse<T>(bool Ok, int StatusCode, T? Value, string? Error, long? CompressedBytes);
+public sealed record HubResponse<T>(bool Ok, int StatusCode, T? Value, string? Error, long? CompressedBytes, TimeSpan? RetryAfter = null);

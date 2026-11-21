@@ -81,7 +81,7 @@ public sealed class MainWindow : Window
         }
 
         ImGui.TextColored(Muted,
-            $"Rebuilds {SyncService.Debounce.TotalSeconds:0}s after inventory changes and every {SyncService.PeriodicInterval.TotalSeconds:0}s; only changed sections are uploaded.");
+            $"Rebuilds {SyncService.Debounce.TotalSeconds:0}s after inventory changes and every {SyncService.PeriodicInterval.TotalSeconds:0}s; only changed sections are uploaded, at most once every {Uploader.MinAutomaticInterval.TotalSeconds:0}s (\"Upload now\" sends straight away).");
 
         DrawLatest();
         DrawWondrousTails();
