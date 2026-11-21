@@ -1,15 +1,17 @@
-.intro { font-size: 13px; margin: -4px 0 12px; }
-.filter { margin: 0 0 8px; }
-
-/* Rows can wrap to several lines of holders, so align to the top. */
-.row { align-items: flex-start; }
-.name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; }
-.total { color: var(--muted); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
-.holders {
-  list-style: none; margin: 3px 0 0; padding: 0; font-size: 13px;
-  display: flex; flex-wrap: wrap; gap: 2px 16px;
+.head, .pager { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .6rem 1rem; }
+.head h2 { margin: 0; }
+.jump { color: var(--blue); font-size: .875rem; text-underline-offset: .2em; }
+.intro, .pager { color: var(--muted); font-size: .875rem; }
+.tools { display: grid; grid-template-columns: minmax(12rem, 1fr) auto auto; align-items: end; gap: .65rem; margin: 1rem 0; }
+.field { display: grid; gap: .35rem; color: var(--muted); font-size: .8rem; }
+.tools input, .tools select { height: 2.7rem; width: 100%; font: inherit; font-size: .95rem; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text); padding: .4rem .65rem; }
+.grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+.pager { align-items: center; margin-top: 1rem; }
+.pager nav { display: flex; gap: .5rem; }
+.pager button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+.pager button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 700px) {
+  .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field:first-child { grid-column: 1 / -1; }
+  .grid { grid-template-columns: 1fr; }
 }
-.holder { font-weight: 600; }
-.qty { font-variant-numeric: tabular-nums; }
-.count { margin-top: 4px; }
-.more { margin-top: 10px; }

@@ -48,7 +48,11 @@ export function SearchView({ query, onQueryChange }: Props) {
 
   return (
     <section>
+      <label className={styles.title} htmlFor="inventory-search">
+        Inventory search
+      </label>
       <input
+        id="inventory-search"
         className={styles.search}
         type="search"
         placeholder="Search items: tincture, iron ore, or an item id"
@@ -59,6 +63,7 @@ export function SearchView({ query, onQueryChange }: Props) {
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
       />
+      {!query.trim() && <div className={styles.chart} aria-hidden="true" />}
       <p className={`${ui.muted} ${styles.status}`} aria-live="polite">
         {statusText(state)}
       </p>

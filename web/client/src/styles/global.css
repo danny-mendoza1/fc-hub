@@ -1,18 +1,21 @@
 /* Theme tokens and base element styles. Component styles live next to each component as *.module.css. */
 :root {
   color-scheme: dark;
-  --bg: #11151f;
-  --panel: #1a2030;
-  --panel-2: #222a3d;
-  --border: #2e3850;
-  --text: #e6e9f0;
-  --muted: #9aa3b8;
-  --gold: #d9b562;
-  --blue: #7fb2ff;
+  --bg: #060812;
+  --panel: #11162a;
+  --panel-2: #192238;
+  --border: #334057;
+  --text: #eef3fa;
+  --muted: #a7b5cb;
+  --gold: #d7b86a;
+  --blue: #71d4ec;
   --green: #79d28e;
   --purple: #c49bff;
   --amber: #f0b552;
   --red: #ff7b7b;
+  --focus-ring: var(--blue);
+  --selection-border: var(--blue);
+  --display-font: Georgia, Cambria, serif;
   --radius: 10px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 15px;
@@ -33,7 +36,9 @@ input {
   width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--bg); color: var(--text); outline: none;
 }
-input:focus { border-color: var(--gold); }
+input:focus { border-color: var(--focus-ring); }
+:where(a, button, input, select, summary):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 th {
