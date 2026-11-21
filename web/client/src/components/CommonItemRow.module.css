@@ -20,3 +20,12 @@
 .label { display: flex; justify-content: space-between; gap: 1rem; }
 .label b { font-variant-numeric: tabular-nums; }
 .place { display: block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .chevron { transition: transform 150ms ease-out; }
+  .card details[open] > .breakdown { animation: reveal 150ms ease-out; }
+}
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
