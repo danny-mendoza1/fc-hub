@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { beforeEach, describe, it } from "node:test";
 import type { AppEnv } from "../src/app.ts";
@@ -199,15 +197,6 @@ describe("uploads and search", () => {
       headers: { "content-type": "application/json", "content-encoding": "gzip" },
     });
     assert.equal(res.status, 413);
-  });
-
-  it("accepts the exact JSON the C# plugin emits (contract fixture)", async () => {
-    // Shape produced by System.Text.Json in plugin/FcHub/Upload/UploadModels.cs:
-    // 7-digit fractional timestamps, null owner names, empty item names, camelCase enums.
-    const fixture = JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "plugin-upload-v2.json"), "utf8"));
-    const res = await call(env, "POST", "/api/v1/snapshots", { token: alice, body: fixture });
-    assert.equal(res.status, 200, JSON.stringify(res.body));
-    assert.deepEqual(res.body, { sectionsWritten: 4, itemsWritten: 3, sectionsSkippedStale: [], ownersRejected: [] });
   });
 
   it("limits search query length", async () => {

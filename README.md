@@ -55,6 +55,8 @@ cd plugin
 dotnet build
 ```
 
+`dotnet test` runs the plugin's unit and contract tests (no game needed); CI runs them on every PR.
+
 The output is `plugin/FcHub/bin/x64/Debug/FcHub.dll`. In game: `/xlsettings` → **Experimental** → add that DLL's full path under **Dev Plugin Locations** → Save. Then `/xlplugins` → **Dev Tools → Installed Dev Plugins** → enable **FC Hub**.
 
 Requires the **Allagan Tools** plugin, installed from the official Dalamud repository.

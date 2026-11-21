@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unit and contract tests for the plugin's pure logic (no game needed): `dotnet test plugin/FcHub.slnx`.
+    Building it needs the Dalamud reference assemblies, like the plugin itself. Tests must not touch
+    types that need the game at runtime (Dalamud, FFXIVClientStructs): those assemblies aren't copied here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- xUnit v3 test projects are executables. -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ranges on purpose: any release in these lines works, and they always resolve. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
+    <PackageReference Include="xunit.v3" Version="3.2.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../FcHub/FcHub.csproj" />
+    <!-- The same fixtures the web tests use (web/test/plugin-contract.test.ts). -->
+    <None Include="../../web/test/fixtures/plugin-*.json" Link="fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -2,4 +2,7 @@
   <Project Path="FcHub/FcHub.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="FcHub.Tests/FcHub.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

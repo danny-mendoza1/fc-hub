@@ -32,6 +32,9 @@ jobs:
       - name: Build (Release)
         run: dotnet build plugin/FcHub.slnx --configuration Release
 
+      - name: Unit and contract tests
+        run: dotnet test plugin/FcHub.slnx --configuration Release --no-build
+
       - name: List build output
         shell: pwsh
         run: Get-ChildItem -Recurse -File plugin/FcHub/bin | Select-Object -ExpandProperty FullName
