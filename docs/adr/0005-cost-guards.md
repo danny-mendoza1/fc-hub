@@ -1,6 +1,6 @@
 # ADR 0005: Enforced cost guards
 
-- **Status:** Accepted.
+- **Status:** Accepted. Amended 2026-11-21: the daily budget is a soft limit, not a hard ceiling (see Consequences).
 - **Date:** 2026-11-20
 
 ## Context
@@ -27,9 +27,12 @@ Alternatives considered:
 
 ## Consequences
 
-- The bill is bounded: at most ~30M rows written a month with default settings, whatever goes wrong.
+- The budget is a **soft limit**, not a hard ceiling. Uploads stop once the ledger shows the day's budget spent, so normal use, a looping plugin, or a feature that writes too much is capped at about the budget (~30M rows a month with default settings). It can be exceeded in these ways:
+  - **Concurrent uploads.** The check reads the ledger *before* a request, and the charge is added *after* it. Requests in flight at the same time all pass the same check, so the overshoot is up to one upload's worth of rows (under ~40k) per request in flight. The plugin sends one upload at a time, so with a handful of members this is a few hundred thousand rows at most. A leaked key used by a script sending many requests in parallel could overshoot by more before the first charges land. Revoke the key, or set `WRITES_ENABLED = "false"`.
+  - **Charging happens after the upload commits, as a separate statement.** If the charge fails, the upload stays stored, its rows go uncounted, and the caller gets a 500. The plugin then retries, which is cheap because the diff writes no item rows for unchanged sections.
+  - **Sign-in is not metered.** It writes one or two `sessions` rows, and only after the API key checks out (ADR 0007).
+- A hard ceiling would need the charge reserved atomically before the upload runs (for example, a conditional `UPDATE` of `usage_daily` reserving the worst case, then settling the difference). That's not worth an extra write per upload for one FC, so it isn't done.
 - Each upload costs one extra row (the ledger). Tests that count writes allow for it (`LEDGER` in `test/ingest.test.ts`).
-- The budget is checked *before* a request, so one request can overshoot by at most one upload's worth of rows, which the upload limits keep under ~40k.
 - On Node (Docker), `node:sqlite` reports changed rows without index rows, so the ledger undercounts there. That's fine: self-hosted SQLite isn't billed per row.
 - New routes must pick a policy. A read route that accidentally writes fails in tests and in production (as a 500 with a logged `ReadOnlyViolation`) instead of quietly costing money.
 - Deploy order: apply migration `0003_cost_guards.sql` before deploying the code. The old code ignores the new table and columns.
