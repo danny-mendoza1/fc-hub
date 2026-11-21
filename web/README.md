@@ -30,6 +30,12 @@ Use `localhost` rather than `127.0.0.1` in the browser so the `Secure` session c
 
 PowerShell: `$env:ADMIN_TOKEN="dev-admin"; npm start`.
 
+## Accessibility
+
+The web client targets [WCAG 2.2 Level AA](https://www.w3.org/TR/WCAG22/). Run `npm run test:e2e` to run the accessibility checks with the other browser tests. They exercise sign-in, populated search, inventory comparisons, and journals at desktop and 320 CSS pixels. axe-core runs in the test browser only.
+
+For UI changes, also check keyboard order and visible focus, zoom to 400% from a 1280px viewport, and try the affected task with a screen reader. Check names and quantities in compact results, selection changes, errors, and expand/collapse announcements. Automated checks cover a subset of the criteria; record manual findings separately.
+
 ## Deploy to Cloudflare (first time)
 
 ```bash

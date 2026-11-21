@@ -1,1 +1,4 @@
 .main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+
+.skip { position: fixed; inset: .5rem auto auto .5rem; z-index: 3; padding: .7rem 1rem; background: var(--panel); color: var(--blue); border: 1px solid currentColor; border-radius: .35rem; transform: translateY(-160%); }
+.skip:focus { transform: none; }

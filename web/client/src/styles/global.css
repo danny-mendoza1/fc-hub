@@ -4,6 +4,7 @@
   --bg: #060812;
   --panel: #11162a;
   --panel-2: #192238;
+  --control-border: #7b8ca5;
   --border: #334057;
   --text: #eef3fa;
   --muted: #a7b5cb;
@@ -18,12 +19,16 @@
   --display-font: Georgia, Cambria, serif;
   --radius: 10px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 15px;
+  font-size: 93.75%;
 }
 
 * { box-sizing: border-box; }
 
 body { margin: 0; background: var(--bg); color: var(--text); }
+
+@media (min-width: 701px) and (min-height: 32rem) {
+  html { scroll-padding-block-start: 6rem; }
+}
 
 button, input { font: inherit; }
 
@@ -33,7 +38,7 @@ button {
 }
 
 input {
-  width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+  width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--control-border);
   background: var(--bg); color: var(--text); outline: none;
 }
 input:focus { border-color: var(--focus-ring); }
@@ -51,3 +56,5 @@ code {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9em;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px;
 }
+
+input::placeholder { color: var(--muted); opacity: 1; }
