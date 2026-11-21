@@ -46,6 +46,7 @@ export function useApi<T>(load: (signal: AbortSignal) => Promise<T>, deps: Depen
   const signedOut = useSignedOut();
   const [state, setState] = useState<Loaded<T>>({ status: "loading" });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `load` is a new closure every render; the caller's `deps` say when it really changes.
   useEffect(() => {
     const controller = new AbortController();
     setState({ status: "loading" });
@@ -57,8 +58,6 @@ export function useApi<T>(load: (signal: AbortSignal) => Promise<T>, deps: Depen
         setState({ status: "error", message: `${errorPrefix}: ${errorMessage(error)}` });
       });
     return () => controller.abort();
-    // `load` is a new closure every render; `deps` says when it actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, signedOut]);
 
   return state;
@@ -75,11 +74,8 @@ export function usePartySelection<K extends string | number>(
 ): { party: ReadonlySet<K>; toggle: (key: K) => void } {
   // null = never chosen in this browser.
   const [saved, setSaved] = usePersistentState<K[] | null>(storageKey, () => null);
-  const party = useMemo(
-    () => new Set(saved === null ? defaults() : saved.filter((key) => available.includes(key))),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [saved, available],
-  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `defaults` is a new closure every render and only matters until a choice is saved.
+  const party = useMemo(() => new Set(saved === null ? defaults() : saved.filter((key) => available.includes(key))), [saved, available]);
   const toggle = (key: K) => {
     const next = new Set(party);
     if (next.has(key)) next.delete(key);

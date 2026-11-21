@@ -6,9 +6,9 @@ import { numberFormat, placeTitle, placeWhere } from "../format.ts";
 import { useApi, usePartySelection } from "../hooks.ts";
 import { HqBadge } from "./Bits.tsx";
 import { ItemIcon } from "./ItemIcon.tsx";
+import styles from "./ItemsInCommon.module.css";
 import { PartyPicker } from "./PartyPicker.tsx";
 import ui from "./ui.module.css";
-import styles from "./ItemsInCommon.module.css";
 
 /** Rows shown before "Show all", so the character list below stays within reach. */
 const FIRST_ROWS = 15;
@@ -38,8 +38,8 @@ export function ItemsInCommon() {
     <article className={`${ui.card} ${ui.inCommonCard}`}>
       <h2 className={ui.sectionHeading}>Items in common</h2>
       <p className={`${ui.muted} ${styles.intro}`}>
-        Items that two or more of the party keep in storage (bags, saddlebags, armoury, retainers, FC chest), so you can see what
-        could be stacked in one place. Equipped gear, market listings and crystals aren't counted.
+        Items that two or more of the party keep in storage (bags, saddlebags, armoury, retainers, FC chest), so you can see what could be
+        stacked in one place. Equipped gear, market listings and crystals aren't counted.
       </p>
 
       {state.status === "loading" && <p className={ui.muted}>Loading…</p>}

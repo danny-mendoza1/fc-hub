@@ -1,16 +1,25 @@
-import { type AuthedMember, authenticateMember, clearSessionCookie, createMember, isAdmin, memberForKey, publicMember, sessionCookie } from "./auth.ts";
+import {
+  type AuthedMember,
+  authenticateMember,
+  clearSessionCookie,
+  createMember,
+  isAdmin,
+  memberForKey,
+  publicMember,
+  sessionCookie,
+} from "./auth.ts";
 import { validateUpload } from "./contract.ts";
 import { MeteredDatabase, ReadOnlyViolation, readOnly } from "./db/guards.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { HttpError } from "./http-error.ts";
-import { ingestUpload } from "./ingest.ts";
 import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
+import { ingestUpload } from "./ingest.ts";
 import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
 import { type Limits, resolveLimits } from "./limits.ts";
 import { overview, ownerItems } from "./owners.ts";
 import { MAX_QUERY_LENGTH, searchItems } from "./search.ts";
-import { ID_PATTERN } from "./validation.ts";
 import { checkWriteBudget, recordWrites, setWriteBudgetOverride, usageReport } from "./usage.ts";
+import { ID_PATTERN } from "./validation.ts";
 import { validateWondrousTails } from "./wondrous-tails.ts";
 import { listWondrousTails, saveWondrousTails } from "./wondrous-tails-store.ts";
 
@@ -56,11 +65,16 @@ export interface RouteContext {
   params: Record<string, string>;
   /** Read-only, metered or plain, as the route's policy says. */
   db: SqlDatabase;
-  /** Set for member routes (and memberOrCookie routes). */
+  /** The caller, on member and memberOrCookie routes (see ContextFor); null elsewhere. */
   member: AuthedMember | null;
   limits: Limits;
   now: Date;
 }
+
+/** Routes that require a member always have one, so their handlers get it without a null check. */
+type ContextFor<P extends Policy> = P["access"] extends "member" | "memberOrCookie"
+  ? RouteContext & { member: AuthedMember }
+  : RouteContext;
 
 type Handler = (ctx: RouteContext) => Promise<Response>;
 
@@ -80,15 +94,23 @@ export function routeTable(): readonly { method: Method; path: string; policy: P
   return routes.map(({ method, path, policy }) => ({ method, path, policy }));
 }
 
-function route<M extends Method>(method: M, path: string, policy: PolicyFor<M>, handler: Handler): void {
+function route<M extends Method, const P extends PolicyFor<M>>(
+  method: M,
+  path: string,
+  policy: P,
+  handler: (ctx: ContextFor<P>) => Promise<Response>,
+): void {
   const keys: string[] = [];
   const pattern = new RegExp(
-    "^" + path.replace(/:(\w+)/g, (_match, key: string) => {
-      keys.push(key);
-      return "([^/]+)";
-    }) + "$",
+    "^" +
+      path.replace(/:(\w+)/g, (_match, key: string) => {
+        keys.push(key);
+        return "([^/]+)";
+      }) +
+      "$",
   );
-  routes.push({ method, path, policy, pattern, keys, handler });
+  // run() authenticates before calling the handler, which is what makes ContextFor's promise true.
+  routes.push({ method, path, policy, pattern, keys, handler: handler as Handler });
 }
 
 /** Web-standard entry point shared by the Cloudflare Worker and the Node server. */
@@ -143,18 +165,27 @@ async function run(r: Route, request: Request, env: AppEnv, params: Record<strin
   if (writes === "none") return r.handler({ ...ctx, db: readOnly(env.DB) });
   if (writes === "admin") return r.handler({ ...ctx, db: env.DB });
 
-  // writes === "metered": refuse once today's budget is spent, then charge what this request wrote.
-  const budget = await checkWriteBudget(env.DB, member!, limits, now);
+  // writes === "metered" (always access: "member", so the caller is known): refuse once today's
+  // budget is spent, then charge what this request wrote.
+  if (!member) throw new HttpError(401, "unauthorized", "Missing or invalid API key");
+  const payer = member;
+  const budget = await checkWriteBudget(env.DB, payer, limits, now);
   if (!budget.ok) {
-    throw new HttpError(budget.reason === "disabled" ? 503 : 429, "write_budget", budget.message, { reason: budget.reason }, {
-      "retry-after": String(budget.retryAfterSeconds),
-    });
+    throw new HttpError(
+      budget.reason === "disabled" ? 503 : 429,
+      "write_budget",
+      budget.message,
+      { reason: budget.reason },
+      {
+        "retry-after": String(budget.retryAfterSeconds),
+      },
+    );
   }
   const metered = new MeteredDatabase(env.DB);
   try {
     return await r.handler({ ...ctx, db: metered });
   } finally {
-    await recordWrites(env.DB, member!.id, metered.rowsWritten, now);
+    await recordWrites(env.DB, payer.id, metered.rowsWritten, now);
   }
 }
 
@@ -169,15 +200,15 @@ route("GET", "/api/v1/me", { access: "memberOrCookie", writes: "none" }, async (
       `SELECT content_id AS contentId, name, home_world AS homeWorld, last_upload_at AS lastUploadAt
        FROM characters WHERE member_id = ? ORDER BY name`,
     )
-    .bind(member!.id)
+    .bind(member.id)
     .all();
-  return json({ member: publicMember(member!), characters: characters.results });
+  return json({ member: publicMember(member), characters: characters.results });
 });
 
 route("POST", "/api/v1/snapshots", { access: "member", writes: "metered" }, async ({ request, db, member, limits, now }) => {
   const validation = validateUpload(await readJson(request, limits.maxBodyBytes), limits);
   if (!validation.ok) throw new HttpError(422, "invalid_upload", "Upload failed validation", validation.errors);
-  return json(await ingestUpload(db, member!, validation.value, limits, now));
+  return json(await ingestUpload(db, member, validation.value, limits, now));
 });
 
 route("GET", "/api/v1/search", { access: "memberOrCookie", writes: "none" }, async ({ request, db }) => {
@@ -186,15 +217,13 @@ route("GET", "/api/v1/search", { access: "memberOrCookie", writes: "none" }, asy
   return json(await searchItems(db, q));
 });
 
-route("GET", "/api/v1/overview", { access: "memberOrCookie", writes: "none" }, async ({ db }) =>
-  json({ characters: await overview(db) }),
-);
+route("GET", "/api/v1/overview", { access: "memberOrCookie", writes: "none" }, async ({ db }) => json({ characters: await overview(db) }));
 
 /** The plugin's Wondrous Tails upload (one journal per member; bearer key only). */
 route("POST", "/api/v1/wondrous-tails", { access: "member", writes: "metered" }, async ({ request, db, member, limits, now }) => {
   const validation = validateWondrousTails(await readJson(request, limits.maxBodyBytes));
   if (!validation.ok) throw new HttpError(422, "invalid_upload", "Upload failed validation", validation.errors);
-  return json(await saveWondrousTails(db, member!, validation.value, now));
+  return json(await saveWondrousTails(db, member, validation.value, now));
 });
 
 /** Every member's journal with its status this week; "in common" is computed in the browser. */
@@ -284,7 +313,8 @@ route("PUT", "/api/v1/admin/members/:id/write-budget", { access: "admin", writes
     throw new HttpError(422, "invalid_budget", "until must be an ISO timestamp, or omitted");
   }
   const untilIso = until === null ? null : new Date(Date.parse(until)).toISOString();
-  if (!(await setWriteBudgetOverride(db, Number(params.id), rows, untilIso))) throw new HttpError(404, "not_found", "No member with that id");
+  if (!(await setWriteBudgetOverride(db, Number(params.id), rows, untilIso)))
+    throw new HttpError(404, "not_found", "No member with that id");
   return json({ memberId: Number(params.id), dailyWriteRows: rows, until: rows === null ? null : untilIso });
 });
 

@@ -22,8 +22,11 @@ function toRequest(req: IncomingMessage): Request {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
-    if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
-    else if (value !== undefined) headers.set(key, value);
+    if (Array.isArray(value)) {
+      for (const v of value) headers.append(key, v);
+    } else if (value !== undefined) {
+      headers.set(key, value);
+    }
   }
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   return new Request(url, {

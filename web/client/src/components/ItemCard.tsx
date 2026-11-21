@@ -1,9 +1,9 @@
 import type { SearchHit } from "../../../src/api-types.ts";
 import { numberFormat } from "../format.ts";
-import { Age, HqBadge, Holder } from "./Bits.tsx";
+import { Age, Holder, HqBadge } from "./Bits.tsx";
+import styles from "./ItemCard.module.css";
 import { ItemIcon } from "./ItemIcon.tsx";
 import ui from "./ui.module.css";
-import styles from "./ItemCard.module.css";
 
 /** One search result: an item (+HQ) and everyone holding it, down to the slot. */
 export function ItemCard({ hit }: { hit: SearchHit }) {
@@ -40,6 +40,7 @@ export function ItemCard({ hit }: { hit: SearchHit }) {
               <td className={styles.where}>
                 <ul className={styles.locations}>
                   {h.locations.map((l, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list from one response, never reordered.
                     <li key={i}>{h.locations.length > 1 ? `${numberFormat.format(l.quantity)} × ${l.location}` : l.location}</li>
                   ))}
                 </ul>

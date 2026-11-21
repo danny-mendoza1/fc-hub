@@ -25,7 +25,10 @@ describe("owner items (accordion data)", () => {
               item(4551, "Potion", 3, "Retainer · page 1 · slot 2", { sortedContainer: 10000, sortedSlot: 1 }),
             ],
           },
-          { section: "RetainerMarket", items: [item(36104, "Grade 5 Tincture of Strength", 5, "Retainer (market) · slot 1", { isHq: true })] },
+          {
+            section: "RetainerMarket",
+            items: [item(36104, "Grade 5 Tincture of Strength", 5, "Retainer (market) · slot 1", { isHq: true })],
+          },
         ],
       },
     ]);

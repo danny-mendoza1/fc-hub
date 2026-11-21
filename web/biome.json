@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**", "!dist", "!test-results", "!playwright-report"]
+    "includes": ["**", "!dist", "!test-results", "!playwright-report", "!**/*.md"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -17,7 +17,10 @@
   },
   "linter": {
     "rules": {
-      "recommended": true
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off"
+      }
     }
   },
   "assist": {
@@ -25,6 +28,23 @@
       "source": {
         "organizeImports": "on"
       }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["test/**", "e2e/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ],
+  "css": {
+    "formatter": {
+      "enabled": false
     }
   }
 }

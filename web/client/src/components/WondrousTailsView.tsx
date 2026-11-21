@@ -18,7 +18,13 @@ const STATUS: Record<BookStatus, { label: string; tone: "good" | "warn" | "bad" 
   unknown: { label: "Not shared yet", tone: "muted" },
 };
 
-const dateTime = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dateTime = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 export function WondrousTailsView() {
   const state = useApi((signal) => api.wondrousTails(signal), []);
@@ -106,7 +112,10 @@ function CommonDuties({ duties, activeInParty }: { duties: CommonDuty[]; activeI
                     <span className={ui.muted}>
                       {" · "}Done:{" "}
                       {d.done
-                        .map((x) => `${x.member}${x.secondChancePoints > 0 ? ` (${x.secondChancePoints} second chance${x.secondChancePoints === 1 ? "" : "s"})` : ""}`)
+                        .map(
+                          (x) =>
+                            `${x.member}${x.secondChancePoints > 0 ? ` (${x.secondChancePoints} second chance${x.secondChancePoints === 1 ? "" : "s"})` : ""}`,
+                        )
                         .join(", ")}
                     </span>
                   )}
@@ -185,13 +194,14 @@ function BookMeta({ book: b }: { book: WtBook }) {
 
 function Slot({ slot, common }: { slot: WtSlot; common: boolean }) {
   const done = slot.status !== "open";
-  const title = slot.status === "claimed" ? "Done, sticker placed" : slot.status === "claimable" ? "Done, sticker not placed yet" : "Not done";
+  const title =
+    slot.status === "claimed" ? "Done, sticker placed" : slot.status === "claimable" ? "Done, sticker not placed yet" : "Not done";
   return (
     <li className={`${styles.slot} ${done ? styles.done : ""} ${common ? styles.inCommon : ""}`} title={`${slot.name}: ${title}`}>
       <ItemIcon iconId={slot.iconId} />
       <span className={styles.slotName}>{slot.name}</span>
       {done && (
-        <span className={styles.check} aria-label={title}>
+        <span className={styles.check} role="img" aria-label={title}>
           ✓
         </span>
       )}

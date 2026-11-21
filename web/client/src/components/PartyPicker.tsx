@@ -25,10 +25,18 @@ export function PartyPicker<K extends string | number>({
   onToggle: (key: K) => void;
 }) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in a flex row of chips; role="group" gives the same semantics.
     <div className={ui.party} role="group" aria-label={ariaLabel}>
       <span className={ui.partyLabel}>{label}</span>
       {options.map((o) => (
-        <button key={o.key} type="button" className={ui.chip} aria-pressed={selected.has(o.key)} onClick={() => onToggle(o.key)} title={o.title}>
+        <button
+          key={o.key}
+          type="button"
+          className={ui.chip}
+          aria-pressed={selected.has(o.key)}
+          onClick={() => onToggle(o.key)}
+          title={o.title}
+        >
           {o.marker}
           {o.label}
         </button>

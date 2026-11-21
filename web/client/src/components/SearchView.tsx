@@ -5,8 +5,8 @@ import { numberFormat } from "../format.ts";
 import { useDebounced } from "../hooks.ts";
 import { useSignedOut } from "../session.ts";
 import { ItemCard } from "./ItemCard.tsx";
-import ui from "./ui.module.css";
 import styles from "./SearchView.module.css";
+import ui from "./ui.module.css";
 
 const DEBOUNCE_MS = 250;
 
@@ -54,6 +54,7 @@ export function SearchView({ query, onQueryChange }: Props) {
         placeholder="Search items: tincture, iron ore, or an item id"
         autoComplete="off"
         spellCheck={false}
+        // biome-ignore lint/a11y/noAutofocus: the search box is the whole point of this tab.
         autoFocus
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}

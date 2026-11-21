@@ -37,8 +37,7 @@ export const api = {
 
   signOut: () => request<void>("/api/v1/session", { method: "DELETE" }),
 
-  search: (q: string, signal?: AbortSignal) =>
-    request<SearchResponse>(`/api/v1/search?q=${encodeURIComponent(q)}`, { signal }),
+  search: (q: string, signal?: AbortSignal) => request<SearchResponse>(`/api/v1/search?q=${encodeURIComponent(q)}`, { signal }),
 
   overview: (signal?: AbortSignal) => request<OverviewResponse>("/api/v1/overview", { signal }),
 

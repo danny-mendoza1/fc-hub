@@ -12,13 +12,6 @@ export function ItemIcon({ iconId, size = "small" }: { iconId: number; size?: "s
   if (!iconId || failed) return <span className={`${className} ${styles.placeholder}`} aria-hidden="true" />;
 
   return (
-    <img
-      className={className}
-      src={`/api/v1/icons/${iconId}`}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <img className={className} src={`/api/v1/icons/${iconId}`} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
   );
 }

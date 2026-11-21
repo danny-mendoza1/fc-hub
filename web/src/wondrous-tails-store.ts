@@ -3,7 +3,15 @@ import { ACTIVE_MEMBER } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { claimCharacter } from "./ingest.ts";
 import { clampCapturedAt } from "./validation.ts";
-import { bookStatus, type StoredBook, type WondrousTailsResponse, type WtBook, type WtSlot, type WtUpload, weeklyResets } from "./wondrous-tails.ts";
+import {
+  bookStatus,
+  type StoredBook,
+  type WondrousTailsResponse,
+  type WtBook,
+  type WtSlot,
+  type WtUpload,
+  weeklyResets,
+} from "./wondrous-tails.ts";
 
 interface Row {
   member_id: number;
@@ -18,7 +26,6 @@ interface Row {
   turned_in_at: string | null;
   turned_in_expires_at: string | null;
 }
-
 
 /**
  * Stores a member's journal (replacing their previous one, even if it came from another

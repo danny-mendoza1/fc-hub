@@ -1,8 +1,8 @@
 import { type FormEvent, useState } from "react";
 import type { Member } from "../../../src/api-types.ts";
 import { api, errorMessage, Unauthorized } from "../api.ts";
-import ui from "./ui.module.css";
 import styles from "./LoginView.module.css";
+import ui from "./ui.module.css";
 
 export function LoginView({ onSignedIn }: { onSignedIn: (member: Member) => void }) {
   const [apiKey, setApiKey] = useState("");
@@ -38,6 +38,7 @@ export function LoginView({ onSignedIn }: { onSignedIn: (member: Member) => void
           placeholder="fch_…"
           required
           spellCheck={false}
+          // biome-ignore lint/a11y/noAutofocus: signing in is the only thing to do on this page.
           autoFocus
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}

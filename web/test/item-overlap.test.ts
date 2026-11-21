@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { commonItems, type ItemPlace, otherPlaces, type PlacedItem } from "../src/item-overlap.ts";
-import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, BOB, FC, addMember, call, createEnv, item, upload } from "./helpers.ts";
+import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, FC, item, upload } from "./helpers.ts";
 
 const IRON_ORE = 5111;
 const POTION = 4551;
@@ -101,8 +101,15 @@ describe("items in common / also in", () => {
 
     // NQ and HQ don't stack, so Bob's HQ potion isn't another place for Alice's NQ one.
     const potions = res.body.items.filter((i: PlacedItem) => i.itemId === POTION);
-    assert.deepEqual(potions.map((i: PlacedItem) => [i.isHq, i.places.length]), [[false, 1]]);
-    assert.equal(res.body.items.some((i: PlacedItem) => i.itemId === SHARD), false, "crystals are left out");
+    assert.deepEqual(
+      potions.map((i: PlacedItem) => [i.isHq, i.places.length]),
+      [[false, 1]],
+    );
+    assert.equal(
+      res.body.items.some((i: PlacedItem) => i.itemId === SHARD),
+      false,
+      "crystals are left out",
+    );
   });
 
   it("returns holders and the items two or more of them store", async () => {
@@ -116,7 +123,11 @@ describe("items in common / also in", () => {
         ["FC chest", "shared"],
       ],
     );
-    assert.deepEqual(res.body.items.map((i: PlacedItem) => i.name), ["Iron Ore"], "potions differ in quality; shards are crystals");
+    assert.deepEqual(
+      res.body.items.map((i: PlacedItem) => i.name),
+      ["Iron Ore"],
+      "potions differ in quality; shards are crystals",
+    );
   });
 
   it("narrows to the chosen party, grouping each member's places", async () => {
@@ -154,7 +165,10 @@ describe("items in common / also in", () => {
     assert.equal((await call(env, "POST", "/api/v1/admin/members/2/revoke", { token: ADMIN_TOKEN })).status, 200);
     const res = await call(env, "GET", "/api/v1/items/in-common", { token: alice });
     // Bob's character and the FC chest he reported both drop out, leaving Alice alone.
-    assert.deepEqual(res.body.holders.map((h: { label: string }) => h.label), ["Alice"]);
+    assert.deepEqual(
+      res.body.holders.map((h: { label: string }) => h.label),
+      ["Alice"],
+    );
     assert.deepEqual(res.body.items, []);
   });
 });

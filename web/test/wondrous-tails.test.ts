@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { handle } from "../src/app.ts";
 import { bookStatus, commonDuties, type StoredBook, type WtBook, type WtSlot, type WtUpload, weeklyResets } from "../src/wondrous-tails.ts";
-import { ALICE, BOB, addMember, call, createEnv } from "./helpers.ts";
+import { ALICE, addMember, BOB, call, createEnv } from "./helpers.ts";
 
 // Friday 2026-11-20 20:00 UTC: last reset Tue 17th 08:00, next Tue 24th 08:00.
 const NOW = new Date("2026-11-20T20:00:00Z");
@@ -18,7 +18,15 @@ function slots(spec: Record<number, [number, WtSlot["status"]]> = {}, fillerBase
 }
 
 function stored(partial: Partial<StoredBook>): StoredBook {
-  return { hasJournal: true, isExpired: false, expiresAt: RESET_AFTER, capturedAt: "2026-11-19T10:00:00Z", turnedInAt: null, turnedInExpiresAt: null, ...partial };
+  return {
+    hasJournal: true,
+    isExpired: false,
+    expiresAt: RESET_AFTER,
+    capturedAt: "2026-11-19T10:00:00Z",
+    turnedInAt: null,
+    turnedInExpiresAt: null,
+    ...partial,
+  };
 }
 
 describe("weekly resets", () => {
@@ -43,15 +51,34 @@ describe("book status", () => {
 
   it("handles no journal, hand-ins and never-uploaded members", () => {
     assert.deepEqual(bookStatus(null, NOW), { status: "unknown", stale: false, newJournalAvailable: false });
-    assert.deepEqual(bookStatus(stored({ hasJournal: false, expiresAt: null }), NOW), { status: "none", stale: false, newJournalAvailable: true });
+    assert.deepEqual(bookStatus(stored({ hasJournal: false, expiresAt: null }), NOW), {
+      status: "none",
+      stale: false,
+      newJournalAvailable: true,
+    });
 
-    const handedInThisWeeks = stored({ hasJournal: false, expiresAt: null, turnedInAt: "2026-11-19T12:00:00Z", turnedInExpiresAt: RESET_AFTER });
+    const handedInThisWeeks = stored({
+      hasJournal: false,
+      expiresAt: null,
+      turnedInAt: "2026-11-19T12:00:00Z",
+      turnedInExpiresAt: RESET_AFTER,
+    });
     assert.deepEqual(bookStatus(handedInThisWeeks, NOW), { status: "turnedIn", stale: false, newJournalAvailable: false });
 
-    const handedInLastWeeks = stored({ hasJournal: false, expiresAt: null, turnedInAt: "2026-11-19T12:00:00Z", turnedInExpiresAt: NEXT_RESET });
+    const handedInLastWeeks = stored({
+      hasJournal: false,
+      expiresAt: null,
+      turnedInAt: "2026-11-19T12:00:00Z",
+      turnedInExpiresAt: NEXT_RESET,
+    });
     assert.deepEqual(bookStatus(handedInLastWeeks, NOW), { status: "turnedIn", stale: false, newJournalAvailable: true });
 
-    const handedInBeforeReset = stored({ hasJournal: false, expiresAt: null, turnedInAt: "2026-11-15T12:00:00Z", turnedInExpiresAt: NEXT_RESET });
+    const handedInBeforeReset = stored({
+      hasJournal: false,
+      expiresAt: null,
+      turnedInAt: "2026-11-15T12:00:00Z",
+      turnedInExpiresAt: NEXT_RESET,
+    });
     assert.equal(bookStatus(handedInBeforeReset, NOW).status, "none");
   });
 
@@ -63,9 +90,25 @@ describe("book status", () => {
 });
 
 describe("duties in common", () => {
-  const book = (memberId: number, member: string, status: WtBook["status"], spec: Record<number, [number, WtSlot["status"]]>, secondChancePoints = 0): WtBook => ({
-    memberId, member, character: member, homeWorld: "Kraken", status, stale: false, newJournalAvailable: false,
-    capturedAt: NOW.toISOString(), expiresAt: RESET_AFTER, secondChancePoints, stickersPlaced: 0, slots: slots(spec, memberId * 1000),
+  const book = (
+    memberId: number,
+    member: string,
+    status: WtBook["status"],
+    spec: Record<number, [number, WtSlot["status"]]>,
+    secondChancePoints = 0,
+  ): WtBook => ({
+    memberId,
+    member,
+    character: member,
+    homeWorld: "Kraken",
+    status,
+    stale: false,
+    newJournalAvailable: false,
+    capturedAt: NOW.toISOString(),
+    expiresAt: RESET_AFTER,
+    secondChancePoints,
+    stickersPlaced: 0,
+    slots: slots(spec, memberId * 1000),
   });
 
   const danny = book(1, "Danny", "current", { 0: [7, "open"], 1: [8, "open"], 2: [9, "claimed"], 3: [10, "open"] }, 3);
@@ -75,8 +118,14 @@ describe("duties in common", () => {
 
   it("only considers the selected party", () => {
     const duo = commonDuties([danny, wife, friend], new Set([1, 2]));
-    assert.deepEqual(duo.map((d) => d.orderId), [7, 8, 9]);
-    assert.deepEqual(duo[0]!.needs.map((n) => n.member), ["Danny", "Wife"]);
+    assert.deepEqual(
+      duo.map((d) => d.orderId),
+      [7, 8, 9],
+    );
+    assert.deepEqual(
+      duo[0]!.needs.map((n) => n.member),
+      ["Danny", "Wife"],
+    );
 
     const trio = commonDuties([danny, wife, friend], new Set([1, 2, 3]));
     assert.equal(trio[0]!.orderId, 7);
@@ -86,11 +135,17 @@ describe("duties in common", () => {
   it("lists who already did it, with second chances, and drops duties nobody needs", () => {
     const duo = commonDuties([danny, wife], new Set([1, 2]));
     const eight = duo.find((d) => d.orderId === 8)!;
-    assert.deepEqual(eight.needs.map((n) => n.member), ["Danny"]);
+    assert.deepEqual(
+      eight.needs.map((n) => n.member),
+      ["Danny"],
+    );
     assert.deepEqual(eight.done, [{ memberId: 2, member: "Wife", secondChancePoints: 1 }]);
 
     const allDone = book(5, "X", "current", { 0: [9, "claimed"] });
-    assert.equal(commonDuties([danny, allDone], new Set([1, 5])).find((d) => d.orderId === 9), undefined);
+    assert.equal(
+      commonDuties([danny, allDone], new Set([1, 5])).find((d) => d.orderId === 9),
+      undefined,
+    );
   });
 
   it("ignores members without an active book and duplicate slots", () => {
@@ -143,8 +198,14 @@ describe("Wondrous Tails API", () => {
   });
 
   it("infers a hand-in when a valid journal disappears", async () => {
-    await call(env, "POST", "/api/v1/wondrous-tails", { token: alice, body: wt({ expiresAt: thisWeeksExpiry(), capturedAt: new Date(Date.now() - 60_000).toISOString() }) });
-    const res = await call(env, "POST", "/api/v1/wondrous-tails", { token: alice, body: wt({ hasJournal: false, expiresAt: null, slots: [] }) });
+    await call(env, "POST", "/api/v1/wondrous-tails", {
+      token: alice,
+      body: wt({ expiresAt: thisWeeksExpiry(), capturedAt: new Date(Date.now() - 60_000).toISOString() }),
+    });
+    const res = await call(env, "POST", "/api/v1/wondrous-tails", {
+      token: alice,
+      body: wt({ hasJournal: false, expiresAt: null, slots: [] }),
+    });
     assert.deepEqual(res.body, { status: "turnedIn", turnedInInferred: true });
     const book = (await call(env, "GET", "/api/v1/wondrous-tails", { token: alice })).body.books[0];
     assert.deepEqual([book.status, book.newJournalAvailable, book.slots.length], ["turnedIn", false, 0]);
@@ -164,7 +225,10 @@ describe("Wondrous Tails API", () => {
 
   it("ignores out-of-order uploads", async () => {
     await call(env, "POST", "/api/v1/wondrous-tails", { token: alice, body: wt({ stickersPlaced: 5 }) });
-    const old = await call(env, "POST", "/api/v1/wondrous-tails", { token: alice, body: wt({ stickersPlaced: 1, capturedAt: new Date(Date.now() - 3_600_000).toISOString() }) });
+    const old = await call(env, "POST", "/api/v1/wondrous-tails", {
+      token: alice,
+      body: wt({ stickersPlaced: 1, capturedAt: new Date(Date.now() - 3_600_000).toISOString() }),
+    });
     assert.equal(old.body.status, "stale");
     assert.equal((await call(env, "GET", "/api/v1/wondrous-tails", { token: alice })).body.books[0].stickersPlaced, 5);
   });
@@ -172,11 +236,18 @@ describe("Wondrous Tails API", () => {
   it("validates uploads and only accepts the bearer key for writes", async () => {
     const bad = await call(env, "POST", "/api/v1/wondrous-tails", { token: alice, body: wt({ slots: slots().slice(0, 3) }) });
     assert.equal(bad.status, 422);
-    const noJournalWithSlots = await call(env, "POST", "/api/v1/wondrous-tails", { token: alice, body: wt({ hasJournal: false, expiresAt: null }) });
+    const noJournalWithSlots = await call(env, "POST", "/api/v1/wondrous-tails", {
+      token: alice,
+      body: wt({ hasJournal: false, expiresAt: null }),
+    });
     assert.equal(noJournalWithSlots.status, 422);
 
     const session = await handle(
-      new Request("https://hub.test/api/v1/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ apiKey: alice }) }),
+      new Request("https://hub.test/api/v1/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ apiKey: alice }),
+      }),
       env,
     );
     const cookie = (session.headers.get("set-cookie") ?? "").split(";")[0]!;
