@@ -3,9 +3,9 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { CONTENT_SECURITY_POLICY, handle } from "../src/app.ts";
-import { SESSION_COOKIE } from "../src/auth.ts";
+import { hashKey, MAX_SESSIONS_PER_MEMBER, SESSION_COOKIE } from "../src/auth.ts";
 import { diskAssets } from "../src/static.ts";
-import { ALICE, addMember, call, createEnv, upload } from "./helpers.ts";
+import { ADMIN_TOKEN, ALICE, addMember, call, createEnv, upload } from "./helpers.ts";
 
 const DIST = join(import.meta.dirname, "..", "dist");
 const BUILT = existsSync(join(DIST, "index.html"));
@@ -85,6 +85,77 @@ describe("browser sessions", () => {
     const res = await handle(new Request("https://hub.test/api/v1/session", { method: "DELETE" }), env);
     assert.equal(res.status, 204);
     assert.match(res.headers.get("set-cookie") ?? "", /Max-Age=0/);
+  });
+});
+
+describe("session tokens", () => {
+  const me = (env: ReturnType<typeof envWithAssets>, cookie: string) => call(env, "GET", "/api/v1/me", { headers: { cookie } });
+  const sessionCount = (env: ReturnType<typeof envWithAssets>) =>
+    (env.DB.raw.prepare("SELECT COUNT(*) AS n FROM sessions").get() as { n: number }).n;
+
+  it("puts a random session token in the cookie, never the API key, and stores only its hash", async () => {
+    const env = envWithAssets();
+    const key = await addMember(env, "Danny");
+    const cookie = cookieFrom(await signIn(env, key));
+    const token = decodeURIComponent(cookie.split("=")[1]!);
+    assert.match(token, /^fchs_[A-Za-z0-9_-]{43}$/);
+    assert.ok(!cookie.includes(key));
+    const stored = env.DB.raw.prepare("SELECT token_hash FROM sessions").all() as { token_hash: string }[];
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0]!.token_hash, await hashKey(token));
+    assert.equal((await me(env, cookie)).status, 200);
+  });
+
+  it("no longer accepts a cookie that holds an API key (sessions from before tokens)", async () => {
+    const env = envWithAssets();
+    const key = await addMember(env, "Danny");
+    assert.equal((await me(env, `${SESSION_COOKIE}=${key}`)).status, 401);
+  });
+
+  it("ends the session on the server when signing out", async () => {
+    const env = envWithAssets();
+    const cookie = cookieFrom(await signIn(env, await addMember(env, "Danny")));
+    const out = await handle(new Request("https://hub.test/api/v1/session", { method: "DELETE", headers: { cookie } }), env);
+    assert.equal(out.status, 204);
+    assert.equal(sessionCount(env), 0);
+    assert.equal((await me(env, cookie)).status, 401, "a kept cookie must not keep working");
+  });
+
+  it("signs every browser out when the key is rotated or revoked", async () => {
+    const env = envWithAssets();
+    const danny = await addMember(env, "Danny");
+    const bob = await addMember(env, "Bob");
+    const dannyCookie = cookieFrom(await signIn(env, danny));
+    const bobCookie = cookieFrom(await signIn(env, bob));
+
+    await call(env, "POST", "/api/v1/admin/members/1/rotate-key", { token: ADMIN_TOKEN });
+    assert.equal((await me(env, dannyCookie)).status, 401);
+    assert.equal((await me(env, bobCookie)).status, 200, "other members stay signed in");
+
+    await call(env, "POST", "/api/v1/admin/members/2/revoke", { token: ADMIN_TOKEN });
+    assert.equal((await me(env, bobCookie)).status, 401);
+    assert.equal(sessionCount(env), 0);
+  });
+
+  it("expires sessions after their lifetime and clears expired ones on the next sign-in", async () => {
+    const env = envWithAssets();
+    const key = await addMember(env, "Danny");
+    const cookie = cookieFrom(await signIn(env, key));
+    env.DB.raw.prepare("UPDATE sessions SET expires_at = ?").run(new Date(Date.now() - 1000).toISOString());
+    assert.equal((await me(env, cookie)).status, 401);
+    await signIn(env, key);
+    assert.equal(sessionCount(env), 1, "the expired session was cleared");
+  });
+
+  it(`keeps at most ${MAX_SESSIONS_PER_MEMBER} sessions per member, ending the oldest`, async () => {
+    const env = envWithAssets();
+    const key = await addMember(env, "Danny");
+    const first = cookieFrom(await signIn(env, key));
+    // Make the first session clearly the oldest (later sign-ins can share a millisecond).
+    env.DB.raw.prepare("UPDATE sessions SET created_at = ?").run("2026-01-01T00:00:00.000Z");
+    for (let i = 0; i < MAX_SESSIONS_PER_MEMBER; i++) await signIn(env, key);
+    assert.equal(sessionCount(env), MAX_SESSIONS_PER_MEMBER);
+    assert.equal((await me(env, first)).status, 401, "the oldest session was ended");
   });
 });
 

@@ -3,10 +3,15 @@ import {
   authenticateMember,
   clearSessionCookie,
   createMember,
+  createSession,
+  deleteSession,
+  endSessions,
   isAdmin,
   memberForKey,
   publicMember,
+  readCookie,
   rotateMemberKey,
+  SESSION_COOKIE,
   sessionCookie,
 } from "./auth.ts";
 import { validateUpload } from "./contract.ts";
@@ -55,7 +60,12 @@ type Policy =
   /** Uploads: bearer key only (a cookie can't write), budget-checked and charged to the member. */
   | { access: "member"; writes: "metered" }
   /** Admin maintenance: unmetered, ADMIN_TOKEN only. */
-  | { access: "admin"; writes: "admin" };
+  | { access: "admin"; writes: "admin" }
+  /**
+   * Browser sign-in/out: public, but writes only the caller's own `sessions` rows, and sign-in
+   * writes nothing until the API key in the body checks out (ADR 0007).
+   */
+  | { access: "public"; writes: "session" };
 
 type PolicyFor<M extends Method> = M extends "GET" ? Extract<Policy, { writes: "none" }> : Policy;
 
@@ -155,7 +165,7 @@ async function run(r: Route, request: Request, env: AppEnv, params: Record<strin
 
   let member: AuthedMember | null = null;
   if (access === "member" || access === "memberOrCookie") {
-    member = await authenticateMember(env.DB, request, access === "memberOrCookie");
+    member = await authenticateMember(env.DB, request, now, access === "memberOrCookie");
     if (!member) throw new HttpError(401, "unauthorized", "Missing or invalid API key");
   } else if (access === "admin" && !(await isAdmin(request, env.ADMIN_TOKEN))) {
     throw new HttpError(401, "unauthorized", "Admin token required");
@@ -164,7 +174,7 @@ async function run(r: Route, request: Request, env: AppEnv, params: Record<strin
   const { DB: _rawDb, ...envWithoutDb } = env;
   const ctx = { request, env: envWithoutDb, params, member, limits, now };
   if (writes === "none") return r.handler({ ...ctx, db: readOnly(env.DB) });
-  if (writes === "admin") return r.handler({ ...ctx, db: env.DB });
+  if (writes === "admin" || writes === "session") return r.handler({ ...ctx, db: env.DB });
 
   // writes === "metered" (always access: "member", so the caller is known): refuse once today's
   // budget is spent, then charge what this request wrote.
@@ -254,20 +264,24 @@ route("GET", "/api/v1/icons/:iconId", { access: "memberOrCookie", writes: "none"
   return fetchIcon(Number(iconId), env.FETCH ?? ((input, init) => fetch(input, init)));
 });
 
-/** Browser sign-in: trade the member's API key for an HttpOnly session cookie. Reads only. */
-route("POST", "/api/v1/session", { access: "public", writes: "none" }, async ({ request, db }) => {
+/**
+ * Browser sign-in: the member proves they hold their API key, and gets an HttpOnly cookie with a
+ * new session token (not the key). Nothing is written unless the key checks out.
+ */
+route("POST", "/api/v1/session", { access: "public", writes: "session" }, async ({ request, db, now }) => {
   assertSameOrigin(request);
   const body = (await readJson(request, 4096)) as { apiKey?: unknown };
-  const apiKey = typeof body?.apiKey === "string" ? body.apiKey.trim() : null;
-  const member = await memberForKey(db, apiKey);
-  if (!member || !apiKey) throw new HttpError(401, "unauthorized", "That key isn't valid (or has been revoked).");
+  const member = await memberForKey(db, typeof body?.apiKey === "string" ? body.apiKey.trim() : null);
+  if (!member) throw new HttpError(401, "unauthorized", "That key isn't valid (or has been revoked).");
   const response = json({ member: publicMember(member) });
-  response.headers.append("set-cookie", sessionCookie(apiKey));
+  response.headers.append("set-cookie", sessionCookie(await createSession(db, member.id, now)));
   return response;
 });
 
-route("DELETE", "/api/v1/session", { access: "public", writes: "none" }, async ({ request }) => {
+/** Sign out: ends this browser's session on the server too, not just the cookie. */
+route("DELETE", "/api/v1/session", { access: "public", writes: "session" }, async ({ request, db }) => {
   assertSameOrigin(request);
+  await deleteSession(db, readCookie(request, SESSION_COOKIE));
   const response = new Response(null, { status: 204 });
   response.headers.append("set-cookie", clearSessionCookie());
   return response;
@@ -294,13 +308,15 @@ route("POST", "/api/v1/admin/members/:id/rotate-key", { access: "admin", writes:
   return json({ memberId: Number(params.id), apiKey });
 });
 
+/** Someone leaving the FC: their key and browser sessions stop working, and their data is hidden everywhere. */
 route("POST", "/api/v1/admin/members/:id/revoke", { access: "admin", writes: "admin" }, async ({ db, params, now }) => {
-  const result = await db
-    .prepare("UPDATE members SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
-    .bind(now.toISOString(), Number(params.id))
-    .run();
-  if (result.meta.changes === 0) throw new HttpError(404, "not_found", "No active member with that id");
-  return json({ revoked: Number(params.id) });
+  const memberId = Number(params.id);
+  const [revoked] = (await db.batch([
+    db.prepare("UPDATE members SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").bind(now.toISOString(), memberId),
+    endSessions(db, memberId),
+  ])) as { meta: { changes: number } }[];
+  if ((revoked?.meta.changes ?? 0) === 0) throw new HttpError(404, "not_found", "No active member with that id");
+  return json({ revoked: memberId });
 });
 
 /** Today's D1 rows written per member against the budgets, and the limits in force. */
