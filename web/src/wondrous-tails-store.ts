@@ -1,4 +1,5 @@
 import type { Member } from "./auth.ts";
+import { ACTIVE_MEMBER } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { claimCharacter } from "./ingest.ts";
 import { clampCapturedAt } from "./validation.ts";
@@ -102,7 +103,7 @@ export async function listWondrousTails(db: SqlDatabase, now = new Date()): Prom
        FROM members m
        LEFT JOIN wondrous_tails wt ON wt.member_id = m.id
        LEFT JOIN characters c ON c.content_id = wt.content_id
-       WHERE m.revoked_at IS NULL
+       WHERE ${ACTIVE_MEMBER}
        ORDER BY m.display_name COLLATE NOCASE`,
     )
     .all<Partial<Row> & { member_id: number; member: string; character_name: string | null; home_world: string | null }>();

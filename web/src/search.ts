@@ -1,3 +1,4 @@
+import { ACTIVE_MEMBER, FROM_ACTIVE_ITEMS } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 
 export const MAX_QUERY_LENGTH = 50;
@@ -56,12 +57,8 @@ export async function searchItems(db: SqlDatabase, query: string): Promise<{ hit
       `SELECT i.item_id, i.name, i.icon_id, i.is_hq, i.quantity, i.location,
               o.owner_id, o.kind AS owner_kind, o.name AS owner_name,
               s.captured_at, c.name AS character_name, c.home_world, m.display_name AS member_name
-       FROM items i
-       JOIN owner_sections s ON s.owner_id = i.owner_id AND s.section = i.section
-       JOIN owners o ON o.owner_id = i.owner_id
-       JOIN characters c ON c.content_id = s.reported_by
-       JOIN members m ON m.id = c.member_id
-       WHERE m.revoked_at IS NULL AND ${byId ? "i.item_id = ?1" : "instr(lower(i.name), ?1) > 0"}
+       ${FROM_ACTIVE_ITEMS}
+       WHERE ${byId ? "i.item_id = ?1" : "instr(lower(i.name), ?1) > 0"}
        ORDER BY i.name, i.is_hq DESC, i.item_id, o.kind, o.name, i.sorted_container, i.sorted_slot
        LIMIT ${MAX_ROWS + 1}`,
     )
@@ -128,7 +125,7 @@ export async function overview(db: SqlDatabase): Promise<OverviewCharacter[]> {
        JOIN members m ON m.id = c.member_id
        LEFT JOIN owner_sections s ON s.reported_by = c.content_id
        LEFT JOIN owners o ON o.owner_id = s.owner_id
-       WHERE m.revoked_at IS NULL
+       WHERE ${ACTIVE_MEMBER}
        ORDER BY m.display_name, c.name, o.kind, o.name, s.section`,
     )
     .all<{
@@ -213,7 +210,7 @@ export async function ownerItems(db: SqlDatabase, ownerId: string): Promise<Owne
          FROM owner_sections s
          JOIN characters c ON c.content_id = s.reported_by
          JOIN members m ON m.id = c.member_id
-         WHERE s.owner_id = ? AND m.revoked_at IS NULL`,
+         WHERE s.owner_id = ? AND ${ACTIVE_MEMBER}`,
       )
       .bind(ownerId)
       .all<{ section: string; item_count: number; captured_at: string; character_name: string; member_name: string }>(),
@@ -264,6 +261,8 @@ export async function ownerItems(db: SqlDatabase, ownerId: string): Promise<Owne
     });
   }
 
+  // Nothing visible (e.g. the member who uploaded it was revoked): don't reveal even the owner's name.
+  if (bySection.size === 0) return null;
   return {
     owner: { ownerId: owner.owner_id, kind: owner.kind, name: owner.name },
     sections: [...bySection.values()],
