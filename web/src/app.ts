@@ -7,6 +7,7 @@ import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
 import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
 import { type Limits, resolveLimits } from "./limits.ts";
 import { MAX_QUERY_LENGTH, overview, ownerItems, searchItems } from "./search.ts";
+import { ID_PATTERN } from "./validation.ts";
 import { checkWriteBudget, recordWrites, setWriteBudgetOverride, usageReport } from "./usage.ts";
 import { validateWondrousTails } from "./wondrous-tails.ts";
 import { listWondrousTails, saveWondrousTails } from "./wondrous-tails-store.ts";
@@ -302,10 +303,9 @@ export class HttpError extends Error {
   }
 }
 
-/** 64-bit game ids travel as decimal strings. */
 function ownerIdParam(params: Record<string, string>): string {
   const ownerId = params.ownerId ?? "";
-  if (!/^[1-9][0-9]{0,19}$/.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
+  if (!ID_PATTERN.test(ownerId)) throw new HttpError(400, "invalid_owner", "ownerId must be a decimal id");
   return ownerId;
 }
 

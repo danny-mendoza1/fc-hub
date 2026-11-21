@@ -1,43 +1,29 @@
-import { useEffect, useState } from "react";
-import type { ItemPlace, OwnerItem, OwnerItems } from "../../../src/api-types.ts";
+import { useMemo } from "react";
+import type { ItemPlace, OwnerItem } from "../../../src/api-types.ts";
 import { isSharedStorage, itemKey, otherPlaces } from "../../../src/item-overlap.ts";
-import { api, errorMessage, Unauthorized } from "../api.ts";
+import { api } from "../api.ts";
 import { bySectionOrder, numberFormat, placeTitle, placeWhere, SECTION_LABELS } from "../format.ts";
+import { useApi } from "../hooks.ts";
 import { Accordion } from "./Accordion.tsx";
 import { Age, HqBadge } from "./Bits.tsx";
 import { ItemIcon } from "./ItemIcon.tsx";
 import ui from "./ui.module.css";
 import styles from "./OwnerItemsPanel.module.css";
 
-type State = { status: "loading" } | { status: "done"; data: OwnerItems } | { status: "error"; message: string };
-
 /** Item (+HQ) → every storage place it's in, this owner's included. */
 type PlacesByItem = ReadonlyMap<string, ItemPlace[]>;
 
-/** Loads one owner's items (on first expand) and shows a nested accordion per section. */
-export function OwnerItemsPanel({ ownerId, onUnauthorized }: { ownerId: string; onUnauthorized: () => void }) {
-  const [state, setState] = useState<State>({ status: "loading" });
-  // "Also in" is extra: if it fails, the items still show, just without it.
-  const [places, setPlaces] = useState<PlacesByItem>(new Map());
+const NO_PLACES: PlacesByItem = new Map();
 
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .ownerItems(ownerId)
-      .then((data) => !cancelled && setState({ status: "done", data }))
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        if (error instanceof Unauthorized) return onUnauthorized();
-        setState({ status: "error", message: `Couldn't load items: ${errorMessage(error)}` });
-      });
-    api
-      .alsoIn(ownerId)
-      .then(({ items }) => !cancelled && setPlaces(new Map(items.map((i) => [itemKey(i), i.places]))))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [ownerId, onUnauthorized]);
+/** Loads one owner's items (on first expand) and shows a nested accordion per section. */
+export function OwnerItemsPanel({ ownerId }: { ownerId: string }) {
+  const state = useApi((signal) => api.ownerItems(ownerId, signal), [ownerId], "Couldn't load items");
+  // "Also in" is extra: if it fails, the items still show, just without it.
+  const alsoIn = useApi((signal) => api.alsoIn(ownerId, signal), [ownerId]);
+  const places = useMemo(
+    () => (alsoIn.status === "done" ? new Map(alsoIn.data.items.map((i) => [itemKey(i), i.places])) : NO_PLACES),
+    [alsoIn],
+  );
 
   if (state.status === "loading") return <p className={ui.muted}>Loading items…</p>;
   if (state.status === "error") return <p className={ui.error}>{state.message}</p>;

@@ -11,6 +11,8 @@
  * - A new journal can't be taken while holding an unexpired one.
  */
 
+import { type Validation, Validator } from "./validation.ts";
+
 export const WT_SCHEMA_VERSION = 1;
 export const WT_SLOT_COUNT = 16;
 
@@ -163,81 +165,51 @@ export function commonDuties(books: WtBook[], selectedMemberIds: ReadonlySet<num
 
 // --- validation -------------------------------------------------------------------------
 
-const SLOT_STATUSES: readonly string[] = ["open", "claimable", "claimed"];
+const SLOT_STATUSES: readonly SlotStatus[] = ["open", "claimable", "claimed"];
 
-export function validateWondrousTails(input: unknown): { ok: true; value: WtUpload } | { ok: false; errors: string[] } {
-  const errors: string[] = [];
-  const obj = (v: unknown, path: string) => {
-    if (typeof v === "object" && v !== null && !Array.isArray(v)) return v as Record<string, unknown>;
-    errors.push(`${path} must be an object`);
-    return undefined;
-  };
-  const int = (v: unknown, path: string, max = Number.MAX_SAFE_INTEGER) => {
-    if (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 && v <= max) return v;
-    errors.push(`${path} must be an integer between 0 and ${max}`);
-    return 0;
-  };
-  const text = (v: unknown, path: string, allowEmpty = false) => {
-    if (typeof v === "string" && v.length <= 200 && (allowEmpty || v.length > 0)) return v;
-    errors.push(`${path} must be a string of at most 200 characters`);
-    return "";
-  };
-  const bool = (v: unknown, path: string) => {
-    if (typeof v === "boolean") return v;
-    errors.push(`${path} must be a boolean`);
-    return false;
-  };
-  const time = (v: unknown, path: string) => {
-    if (typeof v === "string" && !Number.isNaN(Date.parse(v))) return new Date(Date.parse(v)).toISOString();
-    errors.push(`${path} must be an ISO timestamp`);
-    return "";
-  };
+export function validateWondrousTails(input: unknown): Validation<WtUpload> {
+  const v = new Validator();
+  const root = v.object(input, "body");
+  if (!root) return { ok: false, errors: v.errors };
+  if (root.schemaVersion !== WT_SCHEMA_VERSION) v.errors.push(`schemaVersion must be ${WT_SCHEMA_VERSION}`);
 
-  const root = obj(input, "body");
-  if (!root) return { ok: false, errors };
-  if (root.schemaVersion !== WT_SCHEMA_VERSION) errors.push(`schemaVersion must be ${WT_SCHEMA_VERSION}`);
+  const c = v.object(root.character, "character");
+  const contentId = v.id(c?.contentId, "character.contentId");
 
-  const c = obj(root.character, "character");
-  const contentId = c?.contentId;
-  if (typeof contentId !== "string" || !/^[1-9][0-9]{0,19}$/.test(contentId)) errors.push("character.contentId must be a decimal id string");
-
-  const hasJournal = bool(root.hasJournal, "hasJournal");
-  const slotsIn = Array.isArray(root.slots) ? root.slots : (errors.push("slots must be an array"), []);
-  if (hasJournal && slotsIn.length !== WT_SLOT_COUNT) errors.push(`slots must have ${WT_SLOT_COUNT} entries when hasJournal is true`);
-  if (!hasJournal && slotsIn.length !== 0) errors.push("slots must be empty when hasJournal is false");
+  const hasJournal = v.bool(root.hasJournal, "hasJournal") ?? false;
+  const slotsIn = Array.isArray(root.slots) ? root.slots : (v.errors.push("slots must be an array"), []);
+  if (hasJournal && slotsIn.length !== WT_SLOT_COUNT) v.errors.push(`slots must have ${WT_SLOT_COUNT} entries when hasJournal is true`);
+  if (!hasJournal && slotsIn.length !== 0) v.errors.push("slots must be empty when hasJournal is false");
 
   const slots = slotsIn.slice(0, WT_SLOT_COUNT).map((s, i) => {
-    const slot = obj(s, `slots[${i}]`) ?? {};
-    const status = slot.status;
-    if (typeof status !== "string" || !SLOT_STATUSES.includes(status)) errors.push(`slots[${i}].status is invalid`);
+    const path = `slots[${i}]`;
+    const slot = v.object(s, path) ?? {};
     return {
-      index: int(slot.index, `slots[${i}].index`, WT_SLOT_COUNT - 1),
-      orderId: int(slot.orderId, `slots[${i}].orderId`, 65_535),
-      name: text(slot.name, `slots[${i}].name`, true),
-      iconId: int(slot.iconId, `slots[${i}].iconId`, 999_999),
-      type: int(slot.type, `slots[${i}].type`, 255),
-      dataId: int(slot.dataId, `slots[${i}].dataId`),
-      status: status as SlotStatus,
+      index: v.int(slot.index, `${path}.index`, WT_SLOT_COUNT - 1) ?? 0,
+      orderId: v.int(slot.orderId, `${path}.orderId`, 65_535) ?? 0,
+      name: v.text(slot.name, `${path}.name`, true) ?? "",
+      iconId: v.int(slot.iconId, `${path}.iconId`, 999_999) ?? 0,
+      type: v.int(slot.type, `${path}.type`, 255) ?? 0,
+      dataId: v.int(slot.dataId, `${path}.dataId`) ?? 0,
+      status: v.oneOf(slot.status, `${path}.status`, SLOT_STATUSES) ?? "open",
     };
   });
 
-  const value: WtUpload = {
+  return v.result<WtUpload>({
     schemaVersion: WT_SCHEMA_VERSION,
     pluginVersion: typeof root.pluginVersion === "string" ? root.pluginVersion.slice(0, 40) : "",
-    capturedAt: time(root.capturedAt, "capturedAt"),
+    capturedAt: v.timestamp(root.capturedAt, "capturedAt") ?? "",
     character: {
-      contentId: typeof contentId === "string" ? contentId : "",
-      name: text(c?.name, "character.name"),
-      homeWorldId: int(c?.homeWorldId, "character.homeWorldId"),
-      homeWorld: c?.homeWorld === null || c?.homeWorld === undefined ? null : text(c.homeWorld, "character.homeWorld", true),
+      contentId: contentId ?? "",
+      name: v.text(c?.name, "character.name") ?? "",
+      homeWorldId: v.int(c?.homeWorldId, "character.homeWorldId") ?? 0,
+      homeWorld: v.optionalText(c?.homeWorld, "character.homeWorld") ?? null,
     },
     hasJournal,
-    isExpired: bool(root.isExpired, "isExpired"),
-    expiresAt: hasJournal ? time(root.expiresAt, "expiresAt") : null,
-    secondChancePoints: int(root.secondChancePoints, "secondChancePoints", 99),
-    stickersPlaced: int(root.stickersPlaced, "stickersPlaced", WT_SLOT_COUNT),
+    isExpired: v.bool(root.isExpired, "isExpired") ?? false,
+    expiresAt: hasJournal ? (v.timestamp(root.expiresAt, "expiresAt") ?? "") : null,
+    secondChancePoints: v.int(root.secondChancePoints, "secondChancePoints", 99) ?? 0,
+    stickersPlaced: v.int(root.stickersPlaced, "stickersPlaced", WT_SLOT_COUNT) ?? 0,
     slots,
-  };
-
-  return errors.length > 0 ? { ok: false, errors: errors.slice(0, 20) } : { ok: true, value };
+  });
 }

@@ -1,6 +1,8 @@
 import type { Member } from "./auth.ts";
+import { ACTIVE_MEMBER } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { claimCharacter } from "./ingest.ts";
+import { clampCapturedAt } from "./validation.ts";
 import { bookStatus, type StoredBook, type WondrousTailsResponse, type WtBook, type WtSlot, type WtUpload, weeklyResets } from "./wondrous-tails.ts";
 
 interface Row {
@@ -17,7 +19,6 @@ interface Row {
   turned_in_expires_at: string | null;
 }
 
-const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 
 /**
  * Stores a member's journal (replacing their previous one, even if it came from another
@@ -30,7 +31,7 @@ export async function saveWondrousTails(
   upload: WtUpload,
   now = new Date(),
 ): Promise<{ status: string; turnedInInferred: boolean }> {
-  const capturedAt = new Date(Math.min(Date.parse(upload.capturedAt), now.getTime() + MAX_CLOCK_SKEW_MS)).toISOString();
+  const capturedAt = clampCapturedAt(upload.capturedAt, now);
   const upsertCharacter = await claimCharacter(db, member, upload.character, now);
 
   const previous = await db.prepare("SELECT * FROM wondrous_tails WHERE member_id = ?").bind(member.id).first<Row>();
@@ -102,7 +103,7 @@ export async function listWondrousTails(db: SqlDatabase, now = new Date()): Prom
        FROM members m
        LEFT JOIN wondrous_tails wt ON wt.member_id = m.id
        LEFT JOIN characters c ON c.content_id = wt.content_id
-       WHERE m.revoked_at IS NULL
+       WHERE ${ACTIVE_MEMBER}
        ORDER BY m.display_name COLLATE NOCASE`,
     )
     .all<Partial<Row> & { member_id: number; member: string; character_name: string | null; home_world: string | null }>();

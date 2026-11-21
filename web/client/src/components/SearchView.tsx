@@ -3,6 +3,7 @@ import type { SearchResponse } from "../../../src/api-types.ts";
 import { api, errorMessage, Unauthorized } from "../api.ts";
 import { numberFormat } from "../format.ts";
 import { useDebounced } from "../hooks.ts";
+import { useSignedOut } from "../session.ts";
 import { ItemCard } from "./ItemCard.tsx";
 import ui from "./ui.module.css";
 import styles from "./SearchView.module.css";
@@ -18,10 +19,10 @@ type State =
 interface Props {
   query: string;
   onQueryChange: (query: string) => void;
-  onUnauthorized: () => void;
 }
 
-export function SearchView({ query, onQueryChange, onUnauthorized }: Props) {
+export function SearchView({ query, onQueryChange }: Props) {
+  const signedOut = useSignedOut();
   const debounced = useDebounced(query.trim(), DEBOUNCE_MS);
   const [state, setState] = useState<State>({ status: "idle", message: "" });
 
@@ -39,11 +40,11 @@ export function SearchView({ query, onQueryChange, onUnauthorized }: Props) {
       .then((data) => setState({ status: "done", q, data }))
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        if (error instanceof Unauthorized) return onUnauthorized();
+        if (error instanceof Unauthorized) return signedOut();
         setState({ status: "error", message: `Search failed: ${errorMessage(error)}` });
       });
     return () => controller.abort();
-  }, [debounced, onUnauthorized]);
+  }, [debounced, signedOut]);
 
   return (
     <section>

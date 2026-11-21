@@ -1,3 +1,4 @@
+import { FROM_ACTIVE_ITEMS } from "./db/scopes.ts";
 import type { SqlDatabase } from "./db/types.ts";
 import { type AlsoInResponse, holderKey, holdersOf, type ItemsInCommonResponse, itemKey, type PlacedItem, STORAGE_SECTIONS } from "./item-overlap.ts";
 
@@ -27,12 +28,8 @@ function placesQuery(filter: string): string {
                  i.owner_id, o.kind AS owner_kind, o.name AS owner_name, i.section,
                  SUM(i.quantity) AS quantity, COUNT(*) AS stacks,
                  s.captured_at, c.name AS character_name, m.id AS member_id, m.display_name AS member_name
-          FROM items i
-          JOIN owner_sections s ON s.owner_id = i.owner_id AND s.section = i.section
-          JOIN owners o ON o.owner_id = i.owner_id
-          JOIN characters c ON c.content_id = s.reported_by
-          JOIN members m ON m.id = c.member_id
-          WHERE m.revoked_at IS NULL AND i.section IN (${STORAGE_SQL}) ${filter}
+          ${FROM_ACTIVE_ITEMS}
+          WHERE i.section IN (${STORAGE_SQL}) ${filter}
           GROUP BY i.item_id, i.is_hq, i.owner_id, i.section
           ORDER BY name, i.is_hq, member_name, o.kind, o.name, i.section`;
 }

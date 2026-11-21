@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Member } from "../../src/api-types.ts";
 import { api } from "./api.ts";
 import styles from "./components/App.module.css";
@@ -7,6 +7,7 @@ import { OverviewView } from "./components/OverviewView.tsx";
 import { SearchView } from "./components/SearchView.tsx";
 import { TopBar, type View } from "./components/TopBar.tsx";
 import { WondrousTailsView } from "./components/WondrousTailsView.tsx";
+import { SessionContext } from "./session.ts";
 
 type Auth = { status: "checking" } | { status: "signedOut" } | { status: "signedIn"; member: Member };
 
@@ -39,6 +40,7 @@ export function App() {
   useEffect(() => writeUrl(view, query), [view, query]);
 
   const signedOut = useCallback(() => setAuth({ status: "signedOut" }), []);
+  const session = useMemo(() => ({ signedOut }), [signedOut]);
 
   async function signOut() {
     await api.signOut().catch(() => undefined);
@@ -51,12 +53,12 @@ export function App() {
     <>
       <TopBar member={member} view={view} onNavigate={(v) => setRoute((r) => ({ ...r, view: v }))} onSignOut={signOut} />
       <main className={styles.main}>
-        {auth.status === "signedOut" && <LoginView onSignedIn={(m) => setAuth({ status: "signedIn", member: m })} />}
-        {member && view === "search" && (
-          <SearchView query={query} onQueryChange={(q) => setRoute((r) => ({ ...r, query: q }))} onUnauthorized={signedOut} />
-        )}
-        {member && view === "overview" && <OverviewView onUnauthorized={signedOut} />}
-        {member && view === "wt" && <WondrousTailsView onUnauthorized={signedOut} />}
+        <SessionContext value={session}>
+          {auth.status === "signedOut" && <LoginView onSignedIn={(m) => setAuth({ status: "signedIn", member: m })} />}
+          {member && view === "search" && <SearchView query={query} onQueryChange={(q) => setRoute((r) => ({ ...r, query: q }))} />}
+          {member && view === "overview" && <OverviewView />}
+          {member && view === "wt" && <WondrousTailsView />}
+        </SessionContext>
       </main>
     </>
   );

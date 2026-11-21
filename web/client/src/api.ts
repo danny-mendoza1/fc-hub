@@ -40,15 +40,17 @@ export const api = {
   search: (q: string, signal?: AbortSignal) =>
     request<SearchResponse>(`/api/v1/search?q=${encodeURIComponent(q)}`, { signal }),
 
-  overview: () => request<OverviewResponse>("/api/v1/overview"),
+  overview: (signal?: AbortSignal) => request<OverviewResponse>("/api/v1/overview", { signal }),
 
-  wondrousTails: () => request<WondrousTailsResponse>("/api/v1/wondrous-tails"),
+  wondrousTails: (signal?: AbortSignal) => request<WondrousTailsResponse>("/api/v1/wondrous-tails", { signal }),
 
-  ownerItems: (ownerId: string) => request<OwnerItems>(`/api/v1/owners/${encodeURIComponent(ownerId)}/items`),
+  ownerItems: (ownerId: string, signal?: AbortSignal) =>
+    request<OwnerItems>(`/api/v1/owners/${encodeURIComponent(ownerId)}/items`, { signal }),
 
-  alsoIn: (ownerId: string) => request<AlsoInResponse>(`/api/v1/owners/${encodeURIComponent(ownerId)}/also-in`),
+  alsoIn: (ownerId: string, signal?: AbortSignal) =>
+    request<AlsoInResponse>(`/api/v1/owners/${encodeURIComponent(ownerId)}/also-in`, { signal }),
 
-  itemsInCommon: () => request<ItemsInCommonResponse>("/api/v1/items/in-common"),
+  itemsInCommon: (signal?: AbortSignal) => request<ItemsInCommonResponse>("/api/v1/items/in-common", { signal }),
 };
 
 export function errorMessage(error: unknown): string {

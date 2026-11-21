@@ -2,6 +2,7 @@ import type { Member } from "./auth.ts";
 import type { Upload, UploadItem } from "./contract.ts";
 import type { SqlDatabase, SqlStatement } from "./db/types.ts";
 import type { Limits } from "./limits.ts";
+import { clampCapturedAt } from "./validation.ts";
 
 /** Kinds that belong to exactly one character; others (FC chest, houses) are shared. */
 const PRIVATE_KINDS = new Set(["character", "retainer"]);
@@ -16,8 +17,6 @@ const ITEMS_PER_INSERT = 2_000;
  */
 const MAX_DIFF_JSON_CHARS = 600_000;
 
-/** Client clocks drift; never accept a capture time in the future. */
-const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 
 export interface IngestResult {
   sectionsWritten: number;
@@ -264,10 +263,4 @@ function replaceSectionItems(db: SqlDatabase, ownerId: string, section: string, 
     );
   }
   return statements;
-}
-
-function clampCapturedAt(capturedAt: string, now: Date): string {
-  const time = Date.parse(capturedAt);
-  const latest = now.getTime() + MAX_CLOCK_SKEW_MS;
-  return new Date(Math.min(time, latest)).toISOString();
 }

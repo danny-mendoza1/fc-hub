@@ -143,6 +143,7 @@ One journal per member. The plugin shares the first character it sees, changeabl
 
 - Member keys are 256-bit random values with an `fch_` prefix, stored only as SHA-256 hashes. The admin token is compared in constant time.
 - Upload bodies are size-capped *after* decompression (gzip-bomb safe) and strictly validated, and every upload is charged to a daily write budget (see Limits).
+- Revoking a member hides their characters, retainers and uploads everywhere at once: reads build on the shared SQL in `src/db/scopes.ts`, and `test/visibility.test.ts` checks every read route for leaks.
 - Browser sessions can only **read**. Uploads and admin actions need the `Authorization` header, which another site can't attach, so the cookie can't be abused for CSRF. Session endpoints also reject foreign `Origin`s.
 - Every response carries a strict Content-Security-Policy (`default-src 'none'`, same-origin scripts/styles only, no inline code, `frame-ancestors 'none'`), plus `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, COOP and (on https) HSTS. API responses are `no-store`.
 - The UI is React, which escapes rendered text; `dangerouslySetInnerHTML` is never used. Vite's build has no inline scripts (a test checks `dist/index.html`), so the CSP needs no `unsafe-inline`.
