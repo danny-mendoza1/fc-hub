@@ -25,3 +25,7 @@ cd web
 npm run db:migrate:remote   # only when the PR added a migration
 npm run deploy
 ```
+
+## After a game patch: moving to a newer Dalamud
+
+CI compiles against one pinned Dalamud build (`.github/actions/dalamud-reference/action.yml`), so a Dalamud update never breaks an unrelated PR. When the plugin needs a newer Dalamud (a new API level, or new game data), update the commit, version and SHA-256 there in one PR. The file has the three commands to get them. If the API level changes, bump `Dalamud.NET.Sdk` in `plugin/FcHub/FcHub.csproj` in the same PR.
