@@ -25,4 +25,17 @@ migrations_dir = "migrations"
 [observability]
 enabled = true
 
+# Denial-of-wallet guard: cap CPU per request (a real upload uses well under 100 ms). The default
+# on Workers Paid is much higher. Waiting on D1 or the network doesn't count as CPU.
+[limits]
+cpu_ms = 5000
+
+# Cost-guard overrides (ADR 0005; defaults in src/limits.ts). Uncomment, edit, `npm run deploy`.
+# For one member only, use the admin API instead (web/README.md, "Limits"); no deploy needed.
+# [vars]
+# LIMIT_MEMBER_DAILY_WRITE_ROWS = "300000"
+# LIMIT_SITE_DAILY_WRITE_ROWS = "1000000"
+# LIMIT_ITEMS_PER_UPLOAD = "10000"
+# WRITES_ENABLED = "false"   # emergency read-only mode
+
 # Secrets (never commit): `npx wrangler secret put ADMIN_TOKEN`
