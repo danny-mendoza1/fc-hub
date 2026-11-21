@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FcHub.Snapshot;
@@ -10,50 +8,46 @@ using FcHub.Snapshot;
 namespace FcHub.Upload;
 
 /// <summary>
-/// Uploads changed sections in the background. One upload at a time; failures back off
-/// exponentially; auth failures pause uploading until the settings change.
+/// Uploads changed inventory sections through the shared <see cref="UploadChannel"/>.
+/// Automatic uploads happen at most once per <see cref="MinAutomaticInterval"/>: changes in
+/// between wait for the next check and go up together, which keeps the server's write cost down
+/// during crafting or gathering. Manual uploads ("Upload now", /fchub upload) go straight away.
 /// All public members must be used on the framework thread.
 /// </summary>
-public sealed class Uploader : IDisposable
+public sealed class Uploader
 {
-    private static readonly TimeSpan MinBackoff = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(10);
+    /// <summary>Minimum time between automatic uploads.</summary>
+    public static readonly TimeSpan MinAutomaticInterval = TimeSpan.FromSeconds(60);
 
     private readonly Configuration configuration;
     private readonly IDalamudPluginInterface pluginInterface;
-    private readonly IFramework framework;
     private readonly IPluginLog log;
     private readonly HubClient client;
+    private readonly UploadChannel channel;
     private readonly string pluginVersion;
-    private readonly CancellationTokenSource disposing = new();
+    private DateTime lastUploadAt = DateTime.MinValue;
 
-    private bool inFlight;
-    private bool disposed;
-    private int consecutiveFailures;
-    private DateTime nextAttemptAt = DateTime.MinValue;
-
-    public Uploader(Configuration configuration, IDalamudPluginInterface pluginInterface, IFramework framework, IPluginLog log, HubClient client, string pluginVersion)
+    public Uploader(Configuration configuration, IDalamudPluginInterface pluginInterface, IPluginLog log, HubClient client, UploadChannel channel, string pluginVersion)
     {
         this.configuration = configuration;
         this.pluginInterface = pluginInterface;
-        this.framework = framework;
         this.log = log;
         this.client = client;
+        this.channel = channel;
         this.pluginVersion = pluginVersion;
     }
 
     public UploadStatus Status { get; private set; } = UploadStatus.Initial;
 
-    /// <summary>True when auth failed; cleared by <see cref="SettingsChanged"/>.</summary>
-    public bool Paused { get; private set; }
+    /// <summary>True when the server rejected the key; cleared by <see cref="SettingsChanged"/>.</summary>
+    public bool Paused => channel.Paused;
 
-    public bool IsConfigured => HubClient.TryParseServerUrl(configuration.ServerUrl, out _, out _) && configuration.ApiKey.Length > 0;
+    public bool IsConfigured => channel.IsConfigured;
 
     public void SettingsChanged()
     {
-        Paused = false;
-        consecutiveFailures = 0;
-        nextAttemptAt = DateTime.MinValue;
+        channel.SettingsChanged();
+        lastUploadAt = DateTime.MinValue;
         Status = Status with { Message = IsConfigured ? "Settings saved; uploading on next check." : "Not configured." };
     }
 
@@ -67,146 +61,88 @@ public sealed class Uploader : IDisposable
         }
 
         pluginInterface.SavePluginConfig(configuration);
-        nextAttemptAt = DateTime.MinValue;
     }
 
-    /// <summary>Offer a freshly built snapshot; uploads whatever changed unless busy, paused or backing off.</summary>
-    public void Offer(InventorySnapshot snapshot, bool force = false)
+    /// <summary>
+    /// Offer a freshly built snapshot; uploads whatever changed unless busy, paused, backing off, or
+    /// (for automatic uploads) within a minute of the last upload. <paramref name="manual"/> skips the waits.
+    /// </summary>
+    public void Offer(InventorySnapshot snapshot, bool manual = false)
     {
-        if (!configuration.UploadEnabled || Paused || inFlight)
+        if (!manual && DateTime.UtcNow - lastUploadAt < MinAutomaticInterval)
         {
             return;
         }
 
-        if (!HubClient.TryParseServerUrl(configuration.ServerUrl, out var server, out _) || configuration.ApiKey.Length == 0)
+        var blocked = channel.Blocked(manual);
+        if (blocked != null)
         {
-            Status = Status with { Message = "Not configured: set the server URL and API key in settings." };
+            if (!channel.InFlight)
+            {
+                Status = Status with { Message = blocked };
+            }
+
             return;
         }
 
-        if (!force && DateTime.UtcNow < nextAttemptAt)
-        {
-            return;
-        }
-
-        inFlight = true;
-        var apiKey = configuration.ApiKey;
         var uploaded = new Dictionary<string, string>(configuration.UploadedSections);
-        var token = disposing.Token;
-
-        _ = Task.Run(async () =>
-        {
-            UploadPlan? plan = null;
-            HubResponse<UploadResult>? response = null;
-            Exception? failure = null;
-            try
+        UploadPlan? plan = null;
+        channel.TrySend<UploadResult>(
+            manual,
+            async (server, apiKey, token) =>
             {
+                // Hashing and serializing happen here, off the framework thread.
                 plan = SectionPlanner.Plan(snapshot, uploaded, pluginVersion);
-                if (!plan.IsEmpty)
+                if (plan.IsEmpty)
                 {
-                    response = await client.UploadAsync(server!, apiKey, plan.Payload, token).ConfigureAwait(false);
+                    return new HubResponse<UploadResult>(true, 0, null, null, null);
                 }
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception e)
-            {
-                failure = e;
-            }
 
-            await framework.RunOnFrameworkThread(() => Complete(plan, response, failure)).ConfigureAwait(false);
-        }, token);
+                return await client.UploadAsync(server, apiKey, plan.Payload, token).ConfigureAwait(false);
+            },
+            outcome => Complete(plan, outcome));
     }
 
-    private void Complete(UploadPlan? plan, HubResponse<UploadResult>? response, Exception? failure)
+    private void Complete(UploadPlan? plan, UploadOutcome<UploadResult> outcome)
     {
-        inFlight = false;
-        if (disposed)
-        {
-            return;
-        }
-
         var now = DateTimeOffset.UtcNow;
-        if (failure != null)
+        if (!outcome.Ok)
         {
-            log.Error(failure, "Upload failed unexpectedly");
-            Fail(now, $"Error: {failure.Message}");
+            Status = Status with { LastCheckAt = now, Message = outcome.Message, IsError = true };
             return;
         }
 
-        if (plan == null)
+        if (plan == null || plan.IsEmpty || outcome.Value is not { } result)
         {
-            Fail(now, "Error: no upload plan.");
+            Status = Status with { LastCheckAt = now, Message = "Up to date.", IsError = false };
             return;
         }
 
-        if (plan.IsEmpty)
+        foreach (var (key, hash) in plan.NewHashes)
         {
-            consecutiveFailures = 0;
-            Status = Status with { LastCheckAt = now, Message = "Up to date." };
-            return;
+            configuration.UploadedSections[key] = hash;
         }
 
-        if (response is { Ok: true, Value: { } result })
+        foreach (var key in plan.RemovedKeys)
         {
-            foreach (var (key, hash) in plan.NewHashes)
-            {
-                configuration.UploadedSections[key] = hash;
-            }
-
-            foreach (var key in plan.RemovedKeys)
-            {
-                configuration.UploadedSections.Remove(key);
-            }
-
-            pluginInterface.SavePluginConfig(configuration);
-            consecutiveFailures = 0;
-            nextAttemptAt = DateTime.MinValue;
-
-            var notes = new List<string>();
-            if (result.SectionsSkippedStale.Count > 0) notes.Add($"{result.SectionsSkippedStale.Count} already newer on server");
-            if (result.OwnersRejected.Count > 0) notes.Add($"{result.OwnersRejected.Count} owner(s) rejected");
-            Status = new UploadStatus(
-                LastCheckAt: now,
-                LastSuccessAt: now,
-                LastSections: result.SectionsWritten,
-                LastItems: result.ItemsWritten,
-                LastBytes: response.CompressedBytes,
-                Message: notes.Count == 0 ? "Uploaded." : $"Uploaded ({string.Join(", ", notes)}).",
-                IsError: false);
-            log.Information("Uploaded {Sections} sections / {Items} items", result.SectionsWritten, result.ItemsWritten);
-            return;
+            configuration.UploadedSections.Remove(key);
         }
 
-        var status = response?.StatusCode ?? 0;
-        var message = response?.Error ?? "Unknown error";
-        if (status is 401 or 403)
-        {
-            Paused = true;
-            Status = Status with { LastCheckAt = now, Message = $"{message}. Uploads paused; check your API key in settings.", IsError = true };
-            log.Warning("Upload rejected ({Status}): {Message}", status, message);
-            return;
-        }
+        pluginInterface.SavePluginConfig(configuration);
+        lastUploadAt = DateTime.UtcNow;
 
-        log.Warning("Upload failed ({Status}): {Message}", status, message);
-        Fail(now, message);
-    }
-
-    private void Fail(DateTimeOffset now, string message)
-    {
-        consecutiveFailures++;
-        var delay = TimeSpan.FromTicks(Math.Min(MaxBackoff.Ticks, MinBackoff.Ticks * (1L << Math.Min(consecutiveFailures - 1, 10))));
-        nextAttemptAt = DateTime.UtcNow + delay;
-        Status = Status with { LastCheckAt = now, Message = $"{message} Retrying in {delay.TotalSeconds:0}s.", IsError = true };
-    }
-
-    public void Dispose()
-    {
-        disposed = true;
-        disposing.Cancel();
-        disposing.Dispose();
+        var notes = new List<string>();
+        if (result.SectionsSkippedStale.Count > 0) notes.Add($"{result.SectionsSkippedStale.Count} already newer on server");
+        if (result.OwnersRejected.Count > 0) notes.Add($"{result.OwnersRejected.Count} owner(s) rejected");
+        Status = new UploadStatus(
+            LastCheckAt: now,
+            LastSuccessAt: now,
+            LastSections: result.SectionsWritten,
+            LastItems: result.ItemsWritten,
+            LastBytes: outcome.Response?.CompressedBytes,
+            Message: notes.Count == 0 ? "Uploaded." : $"Uploaded ({string.Join(", ", notes)}).",
+            IsError: false);
+        log.Information("Uploaded {Sections} sections / {Items} items", result.SectionsWritten, result.ItemsWritten);
     }
 }
 

@@ -2,8 +2,6 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FcHub.Game;
@@ -21,7 +19,6 @@ public sealed class WondrousTailsSync : IDisposable
 {
     private static readonly TimeSpan ReadInterval = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan DelayAfterLogin = TimeSpan.FromSeconds(15);
-    private static readonly TimeSpan RetryAfterFailure = TimeSpan.FromMinutes(5);
 
     private readonly IFramework framework;
     private readonly IClientState clientState;
@@ -30,15 +27,13 @@ public sealed class WondrousTailsSync : IDisposable
     private readonly IPluginLog log;
     private readonly Configuration configuration;
     private readonly HubClient client;
+    private readonly UploadChannel channel;
     private readonly WondrousTailsReader reader;
     private readonly string pluginVersion;
-    private readonly CancellationTokenSource disposing = new();
 
     private DateTime nextRead = DateTime.UtcNow + DelayAfterLogin;
-    private DateTime nextUploadAllowed = DateTime.MinValue;
     private bool lastReadHadNoJournal;
-    private bool inFlight;
-    private bool disposed;
+    private bool manualRequested;
 
     public WondrousTailsSync(
         IFramework framework,
@@ -48,6 +43,7 @@ public sealed class WondrousTailsSync : IDisposable
         IPluginLog log,
         Configuration configuration,
         HubClient client,
+        UploadChannel channel,
         WondrousTailsReader reader,
         string pluginVersion)
     {
@@ -58,6 +54,7 @@ public sealed class WondrousTailsSync : IDisposable
         this.log = log;
         this.configuration = configuration;
         this.client = client;
+        this.channel = channel;
         this.reader = reader;
         this.pluginVersion = pluginVersion;
 
@@ -75,7 +72,12 @@ public sealed class WondrousTailsSync : IDisposable
     /// <summary>True when the logged-in character is the one sharing Wondrous Tails.</summary>
     public bool IsSharingCharacter => playerState.IsLoaded && playerState.ContentId == configuration.WondrousTailsContentId;
 
-    public void RequestRead() => nextRead = DateTime.MinValue;
+    /// <summary>Read (and upload, if changed) now, skipping the usual waits ("Read journal now", /fchub upload).</summary>
+    public void RequestRead()
+    {
+        nextRead = DateTime.MinValue;
+        manualRequested = true;
+    }
 
     /// <summary>Share Wondrous Tails from the logged-in character instead (settings button).</summary>
     public void UseCurrentCharacter()
@@ -105,6 +107,8 @@ public sealed class WondrousTailsSync : IDisposable
         }
 
         nextRead = now + ReadInterval;
+        var manual = manualRequested;
+        manualRequested = false;
 
         if (configuration.WondrousTailsContentId == 0)
         {
@@ -151,23 +155,11 @@ public sealed class WondrousTailsSync : IDisposable
         }
 
         lastReadHadNoJournal = !state.HasJournal;
-        Upload(state, now);
+        Upload(state, now, manual);
     }
 
-    private void Upload(WondrousTailsState state, DateTime now)
+    private void Upload(WondrousTailsState state, DateTime now, bool manual)
     {
-        if (!configuration.UploadEnabled || inFlight || now < nextUploadAllowed)
-        {
-            if (!configuration.UploadEnabled) SetStatus("Read OK. Uploads are off (enable them in settings).", false);
-            return;
-        }
-
-        if (!HubClient.TryParseServerUrl(configuration.ServerUrl, out var server, out _) || configuration.ApiKey.Length == 0)
-        {
-            SetStatus("Not configured: set the server URL and API key in settings.", true);
-            return;
-        }
-
         var payload = new WondrousTailsPayload(
             WondrousTailsPayload.CurrentSchemaVersion,
             pluginVersion,
@@ -191,46 +183,37 @@ public sealed class WondrousTailsSync : IDisposable
             return;
         }
 
-        inFlight = true;
-        var apiKey = configuration.ApiKey;
-        var token = disposing.Token;
-        _ = Task.Run(async () =>
+        var blocked = channel.Blocked(manual);
+        if (blocked != null)
         {
-            HubResponse<WondrousTailsResult>? response = null;
-            Exception? failure = null;
-            try
+            if (channel.InFlight)
             {
-                response = await client.PostJsonAsync<WondrousTailsPayload, WondrousTailsResult>(server!, "api/v1/wondrous-tails", apiKey, payload, token)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
-            {
+                // The inventory upload is using the channel; try again shortly (still manual if it was).
+                nextRead = now + TimeSpan.FromSeconds(5);
+                manualRequested |= manual;
                 return;
             }
-            catch (Exception e)
-            {
-                failure = e;
-            }
 
-            await framework.RunOnFrameworkThread(() =>
+            SetStatus(configuration.UploadEnabled ? blocked : "Read OK. Uploads are off (enable them in settings).", configuration.UploadEnabled);
+            return;
+        }
+
+        channel.TrySend<WondrousTailsResult>(
+            manual,
+            (server, apiKey, token) => client.PostJsonAsync<WondrousTailsPayload, WondrousTailsResult>(server, "api/v1/wondrous-tails", apiKey, payload, token),
+            outcome =>
             {
-                inFlight = false;
-                if (disposed) return;
-                if (response is { Ok: true })
+                if (!outcome.Ok)
                 {
-                    configuration.WondrousTailsUploadedHash = hash;
-                    pluginInterface.SavePluginConfig(configuration);
-                    LastUploadAt = DateTimeOffset.UtcNow;
-                    SetStatus("Uploaded.", false);
+                    SetStatus($"Upload failed: {outcome.Message}", true);
                     return;
                 }
 
-                nextUploadAllowed = DateTime.UtcNow + RetryAfterFailure;
-                var message = failure?.Message ?? response?.Error ?? "Unknown error";
-                log.Warning("Wondrous Tails upload failed: {Message}", message);
-                SetStatus($"Upload failed: {message} (retrying in 5 min)", true);
-            }).ConfigureAwait(false);
-        }, token);
+                configuration.WondrousTailsUploadedHash = hash;
+                pluginInterface.SavePluginConfig(configuration);
+                LastUploadAt = DateTimeOffset.UtcNow;
+                SetStatus("Uploaded.", false);
+            });
     }
 
     /// <summary>
@@ -266,10 +249,7 @@ public sealed class WondrousTailsSync : IDisposable
 
     public void Dispose()
     {
-        disposed = true;
         framework.Update -= OnUpdate;
         clientState.Login -= OnLogin;
-        disposing.Cancel();
-        disposing.Dispose();
     }
 }
