@@ -89,6 +89,8 @@ export interface OwnerSection {
   section: string;
   itemCount: number;
   capturedAt: string;
+  /** Shared sections: when these contents were last seen in game, if the reporter saw them (ADR 0008). */
+  observedAt: string | null;
   /** Whose upload this section came from (matters for the shared FC chest and houses). */
   reportedBy: { member: string; character: string };
   items: OwnerItem[];
@@ -110,14 +112,21 @@ export async function ownerItems(db: SqlDatabase, ownerId: string): Promise<Owne
   const [sections, items] = await Promise.all([
     db
       .prepare(
-        `SELECT s.section, s.item_count, s.captured_at, c.name AS character_name, m.display_name AS member_name
+        `SELECT s.section, s.item_count, s.captured_at, s.observed_at, c.name AS character_name, m.display_name AS member_name
          FROM owner_sections s
          JOIN characters c ON c.content_id = s.reported_by
          JOIN members m ON m.id = c.member_id
          WHERE s.owner_id = ? AND ${ACTIVE_MEMBER}`,
       )
       .bind(ownerId)
-      .all<{ section: string; item_count: number; captured_at: string; character_name: string; member_name: string }>(),
+      .all<{
+        section: string;
+        item_count: number;
+        captured_at: string;
+        observed_at: string | null;
+        character_name: string;
+        member_name: string;
+      }>(),
     db
       .prepare(
         `SELECT section, item_id, name, icon_id, quantity, is_hq, is_collectable, sorted_container, sorted_slot, location
@@ -146,6 +155,7 @@ export async function ownerItems(db: SqlDatabase, ownerId: string): Promise<Owne
         section: s.section,
         itemCount: s.item_count,
         capturedAt: s.captured_at,
+        observedAt: s.observed_at,
         reportedBy: { member: s.member_name, character: s.character_name },
         items: [],
       },

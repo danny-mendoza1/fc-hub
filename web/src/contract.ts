@@ -5,7 +5,8 @@
  * Each section it does send fully replaces that (owner, section) on the server; an empty
  * `items` array means the section is now empty. Sections and owners that aren't sent are
  * left untouched. Retainers the plugin can't see this session therefore keep their
- * last-known contents.
+ * last-known contents. Shared sections may say when they were last seen in game
+ * (`observedAt`, added within v2: optional, so older plugins still validate).
  */
 import { DEFAULT_LIMITS, type Limits } from "./limits.ts";
 import { type Validation, Validator } from "./validation.ts";
@@ -31,6 +32,12 @@ export interface UploadItem {
 export interface UploadSection {
   section: string;
   items: UploadItem[];
+  /**
+   * Shared sections (FC chest, houses): when the plugin last saw these exact contents in game, if
+   * it did. Null or absent means they came from Allagan Tools' cache, which may be days old even
+   * though `capturedAt` is now. A sighting outranks any report (ADR 0008). Older plugins omit it.
+   */
+  observedAt?: string | null;
 }
 
 export interface UploadOwner {
@@ -107,7 +114,9 @@ export function validateUpload(input: unknown, limits: UploadLimits = DEFAULT_LI
           location: v.text(item.location, `${ipath}.location`),
         };
       });
-      return { section: v.text(section.section, `${spath}.section`), items };
+      const observedAt =
+        section.observedAt === undefined || section.observedAt === null ? null : v.timestamp(section.observedAt, `${spath}.observedAt`);
+      return { section: v.text(section.section, `${spath}.section`), items, observedAt };
     });
 
     const names = sections?.map((s) => s?.section);

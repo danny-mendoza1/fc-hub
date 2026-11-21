@@ -102,7 +102,8 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
       "sections": [
         { "section": "RetainerBags", "items": [ { "itemId": 5057, "name": "Iron Ore", "iconId": 21204,
           "quantity": 99, "isHq": false, "isCollectable": false, "container": 10000,
-          "sortedContainer": 10000, "sortedSlot": 0, "location": "Retainer · page 1 · slot 1" } ] }
+          "sortedContainer": 10000, "sortedSlot": 0, "location": "Retainer · page 1 · slot 1" } ],
+          "observedAt": null }   // optional; FC chest and houses only, see below
       ]
     }
   ]
@@ -112,8 +113,12 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 Merge rules (`src/ingest.ts`):
 
 - Each section that's sent **replaces** that owner's section; `items: []` empties it. Sections and owners that aren't sent are left alone, so retainers you haven't opened this session keep their last-known contents.
-- A section is skipped if the server already holds a newer capture of it, e.g. an FC mate opened the FC chest after you.
-- A character belongs to the member whose key first uploaded it. Characters and retainers can only be updated by their own character. The FC chest and houses are shared, and the latest capture wins.
+- A section is skipped if the server already holds fresher data for it ([ADR 0008](../docs/adr/0008-shared-section-sightings.md)):
+  - A **sighting** (`observedAt`: when the plugin saw these contents change in game) outranks any plain report. Between two sightings, the newer one wins.
+  - Between two reports without sightings (older plugins, and every character or retainer section), the later `capturedAt` wins.
+  - So an FC mate's look at the chest isn't replaced by your plugin re-sending Allagan Tools' days-old cache. That cache gets re-sent on a fresh install, "Re-upload everything", an alt, or a retry.
+- These rules hold even when uploads arrive at the same moment: the batch's own SQL enforces them, not just the checks before it.
+- A character belongs to the member whose key first uploaded it. Characters and retainers can only be updated by their own character. The FC chest and houses are shared, and the freshest data wins (see above).
 - 64-bit ids are decimal strings.
 
 ## Limits (cost guards)

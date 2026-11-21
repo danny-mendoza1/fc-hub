@@ -49,7 +49,14 @@ export function OwnerItemsPanel({ ownerId }: { ownerId: string }) {
                 {numberFormat.format(section.itemCount)} item{section.itemCount === 1 ? "" : "s"}
               </span>
               <span className={styles.sectionMeta}>
-                <Age iso={section.capturedAt} />
+                {/* A shared section someone saw in game says so; otherwise the time is just when it was reported (ADR 0008). */}
+                {section.observedAt ? (
+                  <>
+                    seen in game <Age iso={section.observedAt} />
+                  </>
+                ) : (
+                  <Age iso={section.capturedAt} />
+                )}
               </span>
             </div>
           }

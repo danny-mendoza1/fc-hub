@@ -24,7 +24,7 @@ const CLAIMED_BY_OTHER = "This character is registered to another member.";
 export interface IngestResult {
   sectionsWritten: number;
   itemsWritten: number;
-  /** Sections the server already has newer data for (e.g. the FC chest after a mate's newer upload). */
+  /** Sections the server already has fresher data for (e.g. the FC chest after a mate saw it more recently). */
   sectionsSkippedStale: string[];
   /** Owners that belong to someone else's character, or new owners past the per-character cap. */
   ownersRejected: string[];
@@ -36,15 +36,48 @@ interface SectionHolder {
   reportedBy: string;
 }
 
+/** How fresh a section's contents are: when last reported, and when last seen in game (if known). */
+export interface SectionFreshness {
+  capturedAt: string;
+  observedAt: string | null;
+}
+
+/**
+ * Whether a report may replace what's stored for a section (ADR 0008). A sighting in game outranks
+ * any report: a plugin re-sending Allagan Tools' cache (fresh install, "Re-upload everything", an
+ * alt, a retry) stamps old contents with a new capturedAt, so report time can't beat a sighting.
+ * Between two sightings, or two reports, the newer one wins. Mirrors {@link REPLACES_SQL}.
+ */
+export function replaces(incoming: SectionFreshness, stored: SectionFreshness): boolean {
+  if (incoming.observedAt !== null && stored.observedAt !== null) return incoming.observedAt >= stored.observedAt;
+  if (incoming.observedAt !== null) return true;
+  if (stored.observedAt !== null) return false;
+  return incoming.capturedAt >= stored.capturedAt;
+}
+
+/** {@link replaces} as the section upsert's WHERE: `excluded` is the incoming report. Keep the two in step. */
+const REPLACES_SQL = `CASE
+    WHEN excluded.observed_at IS NOT NULL AND owner_sections.observed_at IS NOT NULL THEN excluded.observed_at >= owner_sections.observed_at
+    WHEN excluded.observed_at IS NOT NULL THEN 1
+    WHEN owner_sections.observed_at IS NOT NULL THEN 0
+    ELSE excluded.captured_at >= owner_sections.captured_at
+  END`;
+
+/** A sighting can't be later than the snapshot that reports it; normalised like capturedAt. */
+function clampObservedAt(observedAt: string | null | undefined, capturedAt: string): string | null {
+  if (observedAt === null || observedAt === undefined) return null;
+  return new Date(Math.min(Date.parse(observedAt), Date.parse(capturedAt))).toISOString();
+}
+
 /**
  * Applies an upload in one transaction.
  *
  * The reads before the batch answer the common case quickly and precisely (which owners to reject,
- * which sections are already newer on the server) and avoid sending stale sections at all. They
- * can't keep the data right on their own: another upload can commit between them and the batch.
- * So every rule they check is enforced again by the batch's own SQL, where D1 runs it atomically:
+ * which sections already hold fresher data) and avoid sending stale sections at all. They can't
+ * keep the data right on their own: another upload can commit between them and the batch. So
+ * every rule they check is enforced again by the batch's own SQL, where D1 runs it atomically:
  * the character claim and private owners (a lost race rolls the batch back; see commitUpload), and
- * section freshness (an older report changes nothing, even if it commits last).
+ * section freshness ({@link replaces}: a staler report changes nothing, even if it commits last).
  */
 export async function ingestUpload(
   db: SqlDatabase,
@@ -65,9 +98,9 @@ export async function ingestUpload(
     .bind(ownerIds)
     .all<{ owner_id: string; kind: string; reported_by: string }>();
   const existingSections = await db
-    .prepare("SELECT owner_id, section, captured_at FROM owner_sections WHERE owner_id IN (SELECT value FROM json_each(?))")
+    .prepare("SELECT owner_id, section, captured_at, observed_at FROM owner_sections WHERE owner_id IN (SELECT value FROM json_each(?))")
     .bind(ownerIds)
-    .all<{ owner_id: string; section: string; captured_at: string }>();
+    .all<{ owner_id: string; section: string; captured_at: string; observed_at: string | null }>();
 
   // New owners count against a per-character cap, so a buggy or hostile client can't create
   // unlimited owners (each one grows storage and every scan of it).
@@ -75,7 +108,9 @@ export async function ingestUpload(
   let ownerCount = owned?.n ?? 0;
 
   const ownerById = new Map(existingOwners.results.map((o) => [o.owner_id, o]));
-  const sectionTime = new Map(existingSections.results.map((s) => [`${s.owner_id}\u0000${s.section}`, s.captured_at]));
+  const storedSections = new Map<string, SectionFreshness>(
+    existingSections.results.map((s) => [`${s.owner_id}\u0000${s.section}`, { capturedAt: s.captured_at, observedAt: s.observed_at }]),
+  );
 
   const result: IngestResult = { sectionsWritten: 0, itemsWritten: 0, sectionsSkippedStale: [], ownersRejected: [] };
   const statements: SqlStatement[] = [upsertCharacter];
@@ -102,8 +137,9 @@ export async function ingestUpload(
 
     for (const section of owner.sections) {
       const key = `${owner.ownerId}/${section.section}`;
-      const known = sectionTime.get(`${owner.ownerId}\u0000${section.section}`);
-      if (known !== undefined && known > capturedAt) {
+      const report: SectionFreshness = { capturedAt, observedAt: clampObservedAt(section.observedAt, capturedAt) };
+      const known = storedSections.get(`${owner.ownerId}\u0000${section.section}`);
+      if (known !== undefined && !replaces(report, known)) {
         result.sectionsSkippedStale.push(key);
         continue;
       }
@@ -111,7 +147,9 @@ export async function ingestUpload(
       sent.push({ statement: statements.length, key, items: section.items.length });
       statements.push(
         // owner_sections must exist before items reference it (FK), so upsert it first.
-        db.prepare(UPSERT_SECTION_SQL).bind(owner.ownerId, section.section, capturedAt, character.contentId, section.items.length),
+        db
+          .prepare(UPSERT_SECTION_SQL)
+          .bind(owner.ownerId, section.section, capturedAt, report.observedAt, character.contentId, section.items.length),
         ...syncSectionItems(db, owner.ownerId, section.section, section.items, holder),
       );
     }
@@ -119,7 +157,7 @@ export async function ingestUpload(
 
   const results = await commitUpload(db, statements);
 
-  // A section upsert changes no row when a newer report committed after our reads; its item
+  // A section upsert changes no row when a fresher report committed after our reads; its item
   // statements then did nothing either, so the section was stale after all.
   for (const s of sent) {
     if (changesBy(results[s.statement]) > 0) {
@@ -148,14 +186,16 @@ const UPSERT_OWNER_SQL = `INSERT INTO owners (owner_id, kind, name, reported_by,
     updated_at = excluded.updated_at`;
 
 /**
- * Section upsert. Only a report at least as new as the stored one replaces it; an older one
- * changes no row (and the batch result shows 0 changes), and the item statements after it,
- * guarded by {@link holdsSection}, leave the items alone too.
+ * Section upsert. Only a report that {@link replaces} the stored one gets in; a staler one changes
+ * no row (and the batch result shows 0 changes), and the item statements after it, guarded by
+ * {@link holdsSection}, leave the items alone too.
  */
-const UPSERT_SECTION_SQL = `INSERT INTO owner_sections (owner_id, section, captured_at, reported_by, item_count) VALUES (?, ?, ?, ?, ?)
+const UPSERT_SECTION_SQL = `INSERT INTO owner_sections (owner_id, section, captured_at, observed_at, reported_by, item_count)
+  VALUES (?, ?, ?, ?, ?, ?)
   ON CONFLICT (owner_id, section) DO UPDATE SET
-    captured_at = excluded.captured_at, reported_by = excluded.reported_by, item_count = excluded.item_count
-  WHERE excluded.captured_at >= owner_sections.captured_at`;
+    captured_at = excluded.captured_at, observed_at = excluded.observed_at,
+    reported_by = excluded.reported_by, item_count = excluded.item_count
+  WHERE ${REPLACES_SQL}`;
 
 /**
  * True while the section row (owner ?1, section ?2) is this upload's: its capture time and
