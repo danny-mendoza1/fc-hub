@@ -1,7 +1,9 @@
-import type { SqlDatabase } from "./db/types.ts";
+import type { SqlDatabase, SqlStatement } from "./db/types.ts";
 
 /** Prefix makes keys recognisable (and greppable by secret scanners) if one ever leaks. */
 const KEY_PREFIX = "fch_";
+/** Browser session tokens look different from keys, so one can never be mistaken for the other. */
+const SESSION_PREFIX = "fchs_";
 
 export interface Member {
   id: number;
@@ -22,8 +24,11 @@ export function publicMember(member: Member): Member {
 
 /** 32 random bytes, base64url-encoded. Only the SHA-256 hash is stored. */
 export function generateApiKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return KEY_PREFIX + base64Url(bytes);
+  return KEY_PREFIX + base64Url(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+function generateSessionToken(): string {
+  return SESSION_PREFIX + base64Url(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 export async function hashKey(key: string): Promise<string> {
@@ -39,12 +44,15 @@ export function bearerToken(request: Request): string | null {
 }
 
 /**
- * Browser session cookie. `__Host-` forces Secure, Path=/ and no Domain, so it can't be set or
- * read by other subdomains. HttpOnly keeps it away from page scripts. SameSite=Strict keeps it
- * off cross-site requests.
+ * Browser session cookie. It holds a session token (see createSession), never the API key, so a
+ * stolen cookie can read for at most 30 days and can't upload. `__Host-` forces Secure, Path=/ and
+ * no Domain, so it can't be set or read by other subdomains. HttpOnly keeps it away from page
+ * scripts. SameSite=Strict keeps it off cross-site requests.
  */
 export const SESSION_COOKIE = "__Host-fchub_session";
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+/** Signing in on more devices than this ends the oldest sessions. */
+export const MAX_SESSIONS_PER_MEMBER = 10;
 
 export function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie");
@@ -56,8 +64,8 @@ export function readCookie(request: Request, name: string): string | null {
   return null;
 }
 
-export function sessionCookie(apiKey: string): string {
-  return `${SESSION_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
+export function sessionCookie(token: string): string {
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }
 
 export function clearSessionCookie(): string {
@@ -84,15 +92,67 @@ export function writeBudgetOverrideOf(row: {
   return row.write_budget_override === null ? null : { rows: row.write_budget_override, until: row.write_budget_override_until };
 }
 
+/** Looks up the active member behind an unexpired browser session token. */
+export async function memberForSession(db: SqlDatabase, token: string | null, now: Date): Promise<AuthedMember | null> {
+  if (!token?.startsWith(SESSION_PREFIX)) return null;
+  const row = await db
+    .prepare(
+      `SELECT m.id, m.display_name, m.write_budget_override, m.write_budget_override_until
+       FROM sessions s JOIN members m ON m.id = s.member_id
+       WHERE s.token_hash = ? AND s.expires_at > ? AND m.revoked_at IS NULL`,
+    )
+    .bind(await hashKey(token), now.toISOString())
+    .first<{ id: number; display_name: string; write_budget_override: number | null; write_budget_override_until: string | null }>();
+  return row ? { id: row.id, displayName: row.display_name, writeBudgetOverride: writeBudgetOverrideOf(row) } : null;
+}
+
 /**
- * Resolves the caller to an active member. The bearer header always works; the session cookie
- * only when `allowCookie` is set, which we do for read-only GET routes. Anything that changes
- * data needs the header, which a cross-site page can't attach, so cookies can't be used for CSRF.
+ * Starts a browser session for a member who just proved they hold their key, and returns the
+ * token for the cookie. Also clears expired sessions and keeps at most MAX_SESSIONS_PER_MEMBER
+ * per member, so the table can't grow without bound.
  */
-export async function authenticateMember(db: SqlDatabase, request: Request, allowCookie = false): Promise<AuthedMember | null> {
+export async function createSession(db: SqlDatabase, memberId: number, now: Date): Promise<string> {
+  const token = generateSessionToken();
+  const expires = new Date(now.getTime() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+  await db.batch([
+    db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now.toISOString()),
+    db
+      .prepare("INSERT INTO sessions (token_hash, member_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
+      .bind(await hashKey(token), memberId, now.toISOString(), expires),
+    db
+      .prepare(
+        `DELETE FROM sessions WHERE member_id = ?1 AND token_hash NOT IN (
+           SELECT token_hash FROM sessions WHERE member_id = ?1 ORDER BY created_at DESC LIMIT ?2)`,
+      )
+      .bind(memberId, MAX_SESSIONS_PER_MEMBER),
+  ]);
+  return token;
+}
+
+/** Signs a browser out (the cookie's session stops working even if the cookie is kept). */
+export async function deleteSession(db: SqlDatabase, token: string | null): Promise<void> {
+  if (!token?.startsWith(SESSION_PREFIX)) return;
+  await db
+    .prepare("DELETE FROM sessions WHERE token_hash = ?")
+    .bind(await hashKey(token))
+    .run();
+}
+
+/** Ends every browser session of a member (their key was rotated or revoked). */
+export function endSessions(db: SqlDatabase, memberId: number): SqlStatement {
+  return db.prepare("DELETE FROM sessions WHERE member_id = ?").bind(memberId);
+}
+
+/**
+ * Resolves the caller to an active member. The bearer header (API key) always works; the session
+ * cookie only when `allowCookie` is set, which we do for read-only GET routes. Anything that
+ * changes data needs the header, which a cross-site page can't attach, so cookies can't be used
+ * for CSRF.
+ */
+export async function authenticateMember(db: SqlDatabase, request: Request, now: Date, allowCookie = false): Promise<AuthedMember | null> {
   const bearer = bearerToken(request);
   if (bearer) return memberForKey(db, bearer);
-  return allowCookie ? memberForKey(db, readCookie(request, SESSION_COOKIE)) : null;
+  return allowCookie ? memberForSession(db, readCookie(request, SESSION_COOKIE), now) : null;
 }
 
 /** Constant-time comparison for the admin token, so response timing doesn't leak it. */
@@ -112,11 +172,12 @@ export async function isAdmin(request: Request, adminToken: string | undefined):
  */
 export async function rotateMemberKey(db: SqlDatabase, memberId: number): Promise<string | null> {
   const apiKey = generateApiKey();
-  const result = await db
-    .prepare("UPDATE members SET key_hash = ? WHERE id = ? AND revoked_at IS NULL")
-    .bind(await hashKey(apiKey), memberId)
-    .run();
-  return result.meta.changes > 0 ? apiKey : null;
+  // A rotated key may have leaked, so any browser signed in with it is signed out too.
+  const [updated] = (await db.batch([
+    db.prepare("UPDATE members SET key_hash = ? WHERE id = ? AND revoked_at IS NULL").bind(await hashKey(apiKey), memberId),
+    endSessions(db, memberId),
+  ])) as { meta: { changes: number } }[];
+  return (updated?.meta.changes ?? 0) > 0 ? apiKey : null;
 }
 
 export async function createMember(db: SqlDatabase, displayName: string): Promise<{ member: Member; apiKey: string }> {

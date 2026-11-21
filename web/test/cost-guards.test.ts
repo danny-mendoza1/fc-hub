@@ -70,6 +70,7 @@ describe("route policies", () => {
       if (r.method === "GET") assert.equal(r.policy.writes, "none", r.path);
       if (r.policy.writes === "metered") assert.equal(r.policy.access, "member", `${r.path}: cookies must never write`);
       if (r.policy.writes === "admin") assert.match(r.path, /^\/api\/v1\/admin\//, r.path);
+      if (r.policy.writes === "session") assert.equal(r.path, "/api/v1/session", "only sign-in/out may write sessions");
     }
     const metered = routeTable()
       .filter((r) => r.policy.writes === "metered")
