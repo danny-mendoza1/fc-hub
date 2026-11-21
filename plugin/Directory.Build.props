@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Supply-chain settings for every project under plugin/ (ADR 0006).
+    - Lock files: restores use exactly the versions recorded in packages.lock.json; CI (CI=true)
+      refuses to restore anything else, so a changed or new dependency must come with a lock update.
+    - NuGet audit: checks direct and transitive packages against the GitHub Advisory Database and
+      fails the build on high (NU1903) or critical (NU1904) vulnerabilities.
+  -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
