@@ -48,4 +48,4 @@ npm test && npm run typecheck && npm run build
 npm run lint          # Biome: formatting + lint
 npm run test:e2e      # browser smoke tests (Playwright; needs `npx playwright install chromium` once)
 ```
-The plugin builds and its tests run in CI (`dotnet test plugin/FcHub.slnx`). Add a test plan under `docs/test-plans/` for anything that has to be checked in game, and bump the plugin `<Version>` if the plugin changed (see `RELEASING.md`).
+The plugin builds and its tests run in CI (`dotnet test --solution plugin/FcHub.slnx`). Add a test plan under `docs/test-plans/` for anything that has to be checked in game, and bump the plugin `<Version>` if the plugin changed (see `RELEASING.md`).
