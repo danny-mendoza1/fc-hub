@@ -54,6 +54,35 @@ describe("members", () => {
     assert.equal((await call(env, "POST", "/api/v1/admin/members/1/revoke", { token: ADMIN_TOKEN })).status, 200);
     assert.equal((await call(env, "GET", "/api/v1/me", { token: key })).status, 401);
   });
+
+  it("rotates a key: the old one stops working, and the member keeps their characters", async () => {
+    const env = createEnv();
+    const oldKey = await addMember(env, "Danny");
+    const body = upload(ALICE, "Alice Example", [{ ownerId: ALICE, kind: "character", name: null, sections: [] }]);
+    assert.equal((await call(env, "POST", "/api/v1/snapshots", { token: oldKey, body })).status, 200);
+
+    assert.equal((await call(env, "POST", "/api/v1/admin/members/1/rotate-key", { token: oldKey })).status, 401, "admin only");
+    const rotated = await call(env, "POST", "/api/v1/admin/members/1/rotate-key", { token: ADMIN_TOKEN });
+    assert.equal(rotated.status, 200);
+    assert.equal(rotated.body.memberId, 1);
+    assert.match(rotated.body.apiKey, /^fch_[A-Za-z0-9_-]{43}$/);
+    assert.notEqual(rotated.body.apiKey, oldKey);
+
+    assert.equal((await call(env, "GET", "/api/v1/me", { token: oldKey })).status, 401);
+    const me = await call(env, "GET", "/api/v1/me", { token: rotated.body.apiKey });
+    assert.deepEqual([me.body.member.displayName, me.body.characters.map((c: { name: string }) => c.name)], ["Danny", ["Alice Example"]]);
+    // Same member, so the character is still theirs to upload.
+    const again = await call(env, "POST", "/api/v1/snapshots", { token: rotated.body.apiKey, body: { ...body, capturedAt: new Date().toISOString() } });
+    assert.equal(again.status, 200);
+  });
+
+  it("won't rotate a revoked or unknown member's key", async () => {
+    const env = createEnv();
+    await addMember(env, "Danny");
+    await call(env, "POST", "/api/v1/admin/members/1/revoke", { token: ADMIN_TOKEN });
+    assert.equal((await call(env, "POST", "/api/v1/admin/members/1/rotate-key", { token: ADMIN_TOKEN })).status, 404);
+    assert.equal((await call(env, "POST", "/api/v1/admin/members/9/rotate-key", { token: ADMIN_TOKEN })).status, 404);
+  });
 });
 
 describe("uploads and search", () => {
