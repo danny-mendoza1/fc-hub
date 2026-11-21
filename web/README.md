@@ -52,7 +52,7 @@ curl -X POST https://fc-hub.<you>.workers.dev/api/v1/admin/members \
 
 ## API
 
-All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`, `owners/:id/items`, `icons/:id`, `wondrous-tails`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
+All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The read-only `GET` routes (`me`, `search`, `overview`, `owners/:id/items`, `owners/:id/also-in`, `items/in-common`, `icons/:id`, `wondrous-tails`) also accept the browser session cookie. Errors look like `{"error":{"code","message","details?"}}`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -65,6 +65,8 @@ All `/api/v1` routes except admin take `Authorization: Bearer <member key>`. The
 | `GET` | `/api/v1/search?q=` | Items by name substring or exact item id, grouped item → owner → locations |
 | `GET` | `/api/v1/overview` | Every character's owners and per-section freshness |
 | `GET` | `/api/v1/owners/:ownerId/items` | One owner's items by section in bag/slot order (the "Who's uploaded" accordions) |
+| `GET` | `/api/v1/owners/:ownerId/also-in` | Every storage place of each item (+HQ) this owner holds (the "Also in" lines) |
+| `GET` | `/api/v1/items/in-common` | Holders (members, FC chest, houses) and the items two or more of them store; the party is chosen in the browser |
 | `GET` | `/api/v1/icons/:iconId` | Item icon PNG, proxied from XIVAPI (see below) |
 | `POST` | `/api/v1/wondrous-tails` | Plugin upload of the member's Wondrous Tails journal (bearer key only) |
 | `GET` | `/api/v1/wondrous-tails` | Every member's journal with this week's status; "in common" is computed in the browser |
