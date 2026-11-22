@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { SearchResponse } from "../../../src/api-types.ts";
 import { api, errorMessage, Unauthorized } from "../api.ts";
 import aquarium from "../art/aquarium.webp";
-import classChange from "../art/class-change.webp";
 import classChangeStill from "../art/class-change-still.webp";
 import { numberFormat } from "../format.ts";
 import { useDebounced } from "../hooks.ts";
@@ -12,9 +11,7 @@ import styles from "./SearchView.module.css";
 
 const DEBOUNCE_MS = 250;
 
-type Result =
-  | { status: "done"; q: string; data: SearchResponse; playClassChange: boolean }
-  | { status: "error"; q: string; message: string };
+type Result = { status: "done"; q: string; data: SearchResponse } | { status: "error"; q: string; message: string };
 
 interface Props {
   query: string;
@@ -26,11 +23,9 @@ export function SearchView({ query, onQueryChange }: Props) {
   const term = query.trim();
   const debounced = useDebounced(term, DEBOUNCE_MS);
   const searchable = term.length >= 2 || /^\d+$/.test(term);
-  const previousWasEmpty = useRef(false);
   const [result, setResult] = useState<Result | null>(null);
 
   useEffect(() => {
-    if (!term) previousWasEmpty.current = false;
     setResult(null);
     if (!searchable || term !== debounced) return;
 
@@ -39,10 +34,7 @@ export function SearchView({ query, onQueryChange }: Props) {
       .search(term, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
-        const empty = data.hits.length === 0;
-        setResult({ status: "done", q: term, data, playClassChange: empty && !previousWasEmpty.current });
-        // Refining one miss into another should keep the scene still.
-        previousWasEmpty.current = empty;
+        setResult({ status: "done", q: term, data });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -74,12 +66,7 @@ export function SearchView({ query, onQueryChange }: Props) {
       {!term && <div className={styles.house} aria-hidden="true" />}
       <div className={done ? styles.frame : undefined}>
         <div className={done ? styles.banner : undefined}>
-          {done && (
-            <picture className={styles.scene}>
-              {done.playClassChange && <source media="(prefers-reduced-motion: no-preference)" srcSet={classChange} />}
-              <img src={done.data.hits.length ? aquarium : classChangeStill} alt="" />
-            </picture>
-          )}
+          {done && <img className={styles.scene} src={done.data.hits.length ? aquarium : classChangeStill} alt="" />}
           <div role="status" aria-atomic="true" className={done ? styles.caption : styles.status}>
             {title && <strong>{title}</strong>}
             {detail && <span>{detail}</span>}

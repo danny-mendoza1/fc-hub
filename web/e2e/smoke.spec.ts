@@ -87,12 +87,11 @@ test("wondrous tails: duties in common for the chosen party", async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test("Search scenes follow confirmed results and play once across consecutive misses", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "no-preference" });
+test("Search shows the matching still scene and keeps focus as the query changes", async ({ page }) => {
   await signIn(page);
   const search = page.getByRole("searchbox");
   const status = page.getByRole("status");
-  const scene = page.locator("main picture");
+  const scene = page.locator("main img").first();
   const searchFor = async (term: string) => {
     const response = page.waitForResponse(
       (res) => new URL(res.url()).searchParams.get("q") === term && res.url().includes("/api/v1/search?"),
@@ -103,22 +102,14 @@ test("Search scenes follow confirmed results and play once across consecutive mi
 
   await searchFor("iron orre");
   await expect(status).toContainText("No items found");
-  await expect(scene.locator("source")).toHaveCount(1);
+  await expect(scene).toHaveAttribute("src", /class-change-still.*\.webp$/);
   await expect(search).toBeFocused();
-
-  await searchFor("iron orrre");
-  await expect(status).toContainText("No items found");
-  await expect(scene.locator("source")).toHaveCount(0);
 
   await searchFor("iron ore");
   await expect(status).toContainText("1 item found");
   await expect(page.getByRole("table", { name: "Iron Ore holdings" })).toBeVisible();
 
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await searchFor("iron orre");
-  await expect(status).toContainText("No items found");
-  const still = scene.locator("img");
-  await expect.poll(() => still.evaluate((img: HTMLImageElement) => img.complete && img.currentSrc === img.src)).toBe(true);
+  await expect(scene).toHaveAttribute("src", /aquarium.*\.webp$/);
 
   await search.fill("");
   await expect(status).toBeEmpty();
