@@ -1,21 +1,15 @@
 .main { --content-width: 1100px; max-width: var(--content-width); margin: 0 auto; padding: 24px 20px 64px; }
 
-/* Keep the art in the space outside the work area, including when the page scrolls. */
+/* A perspective crop of the FC hall. Mirror one wall to frame the work area. */
 @media screen and (min-width: 1280px) and (forced-colors: none) {
-  .sky::before, .sky::after {
-    content: ""; position: fixed; top: clamp(6rem, 16vh, 12rem); pointer-events: none;
-    width: min(26rem, calc((100% - var(--content-width)) / 2));
-    aspect-ratio: 2 / 3; background-position: center; background-size: cover;
-    mask-image: radial-gradient(ellipse at center, black 25%, transparent 73%);
+  .hall::before, .hall::after {
+    content: ""; position: fixed; inset-block: 0; pointer-events: none;
+    width: calc((100% - var(--content-width)) / 2); opacity: .83;
+    background: url("../art/constellation-wall.webp") left center / max(100%, 13rem) 100% no-repeat;
+    mask-image: linear-gradient(90deg, black 0%, rgb(0 0 0 / .88) 52%, transparent);
   }
-  .sky::before {
-    left: 0; opacity: .46;
-    background-image: url("../art/star-chart.webp"); background-position: 69% center;
-  }
-  .sky::after {
-    right: 0; opacity: .60;
-    background-image: url("../art/cosmic-dragon.webp");
-  }
+  .hall::before { left: 0; }
+  .hall::after { right: 0; transform: scaleX(-1); }
 }
 
 .skip { position: fixed; inset: .5rem auto auto .5rem; z-index: 3; padding: .7rem 1rem; background: var(--panel); color: var(--blue); border: 1px solid currentColor; border-radius: .35rem; transform: translateY(-160%); }

@@ -80,7 +80,7 @@ export function App() {
         ref={mainRef}
         tabIndex={-1}
         aria-label={pageName}
-        className={member ? `${styles.main} ${styles.sky}` : styles.main}
+        className={member ? `${styles.main} ${styles.hall}` : styles.main}
       >
         <SessionContext value={session}>
           {auth.status === "signedOut" && <LoginView onSignedIn={(m) => setAuth({ status: "signedIn", member: m })} />}
