@@ -1,0 +1,20 @@
+.banner {
+  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
+  min-height: clamp(7rem, 12vw, 10rem); margin-bottom: 1rem;
+  background: var(--panel); border: 1px solid #806e4d; border-radius: var(--radius);
+}
+.banner::before {
+  content: ""; position: absolute; inset: .45rem auto auto .45rem; width: .8rem; height: .8rem;
+  border-top: 1px solid var(--gold); border-left: 1px solid var(--gold);
+}
+.caption { width: 42%; padding: 1rem 1.4rem; overflow-wrap: anywhere; }
+.caption h2 { margin: 0; font: 500 clamp(1.5rem, 3vw, 2.25rem)/1.1 var(--display-font); }
+.caption p { margin: .4rem 0 0; color: var(--text); font-size: .92rem; }
+.photo {
+  position: absolute; z-index: -1; inset: 0 0 0 auto; width: 60%; height: 100%;
+  object-fit: cover; object-position: center 40%; mask-image: linear-gradient(90deg, transparent, black 24%);
+}
+@media (max-width: 700px) {
+  .caption { width: 56%; padding-inline: .9rem; }
+  .photo { width: 46%; }
+}

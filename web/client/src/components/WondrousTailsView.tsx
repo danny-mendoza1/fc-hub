@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import type { BookStatus, CommonDuty, WtBook, WtSlot } from "../../../src/api-types.ts";
 import { commonDuties, isActive } from "../../../src/wondrous-tails.ts";
+import portrait from "../art/journal-portrait.webp";
 import { ago } from "../format.ts";
 import { useApi, usePartySelection } from "../hooks.ts";
 import { queries } from "../queries.ts";
 import { ItemIcon } from "./ItemIcon.tsx";
+import { PageBanner } from "./PageBanner.tsx";
 import { PartyPicker } from "./PartyPicker.tsx";
 import ui from "./ui.module.css";
 import styles from "./WondrousTailsView.module.css";
@@ -29,7 +31,32 @@ const dateTime = new Intl.DateTimeFormat(undefined, {
 export function WondrousTailsView() {
   const state = useApi(queries.wondrousTails);
 
-  const books = useMemo(() => (state.status === "done" ? state.data.books : []), [state]);
+  return (
+    <section>
+      <PageBanner title="Wondrous Tails" image={portrait}>
+        {state.status === "done" && (
+          <p>
+            Week of {new Date(state.data.lastReset).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · next reset{" "}
+            <span title={dateTime.format(new Date(state.data.nextReset))}>{ago(state.data.nextReset)}</span>
+          </p>
+        )}
+      </PageBanner>
+      {state.status === "loading" && (
+        <p role="status" className={ui.muted}>
+          Loading…
+        </p>
+      )}
+      {state.status === "error" && (
+        <p role="alert" className={ui.error}>
+          {state.message}
+        </p>
+      )}
+      {state.status === "done" && <PartyJournals books={state.data.books} />}
+    </section>
+  );
+}
+
+function PartyJournals({ books }: { books: WtBook[] }) {
   const memberIds = useMemo(() => books.map((b) => b.memberId), [books]);
   // Until someone picks, the party is everyone with an active journal.
   const { party, toggle } = usePartySelection("fchub.wt.party", memberIds, () =>
@@ -50,29 +77,10 @@ export function WondrousTailsView() {
     [books, party],
   );
 
-  if (state.status === "loading")
-    return (
-      <p role="status" className={ui.muted}>
-        Loading…
-      </p>
-    );
-  if (state.status === "error")
-    return (
-      <p role="alert" className={ui.error}>
-        {state.message}
-      </p>
-    );
-
-  const { lastReset, nextReset } = state.data;
   const activeInParty = books.filter((b) => party.has(b.memberId) && isActive(b.status)).length;
 
   return (
-    <section>
-      <p className={ui.muted}>
-        Week of {new Date(lastReset).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · next reset{" "}
-        <span title={dateTime.format(new Date(nextReset))}>{ago(nextReset)}</span>
-      </p>
-
+    <>
       <PartyPicker
         label="Party"
         ariaLabel="Party members"
@@ -95,7 +103,7 @@ export function WondrousTailsView() {
           <BookCard key={b.memberId} book={b} inParty={party.has(b.memberId)} together={together} />
         ))}
       </div>
-    </section>
+    </>
   );
 }
 

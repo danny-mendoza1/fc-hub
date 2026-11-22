@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { OverviewCharacter } from "../../../src/api-types.ts";
+import hall from "../art/fc-hall.webp";
 import { bySectionOrder, numberFormat, SECTION_LABELS } from "../format.ts";
 import { useApi } from "../hooks.ts";
 import { prefetchView, queries } from "../queries.ts";
@@ -8,6 +9,7 @@ import { Age, Holder } from "./Bits.tsx";
 import { ItemsInCommon } from "./ItemsInCommon.tsx";
 import styles from "./OverviewView.module.css";
 import { OwnerItemsPanel } from "./OwnerItemsPanel.tsx";
+import { PageBanner } from "./PageBanner.tsx";
 import ui from "./ui.module.css";
 
 export function OverviewView() {
@@ -17,6 +19,7 @@ export function OverviewView() {
 
   return (
     <section>
+      <PageBanner title="Inventories" image={hall} />
       <p className={ui.muted}>
         Open a row to browse its items. Each section shows when it was last captured in game; retainers and the FC chest refresh when
         someone opens them. Something out of date? Type <code>/fchub upload</code> in game to send yours now.
