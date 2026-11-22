@@ -1,8 +1,40 @@
 .title { display: block; margin: .45rem 0 .85rem; font: 500 clamp(1.65rem, 3vw, 2.25rem)/1.18 var(--display-font); }
 .search { font-size: 1.1rem; padding: .95rem 1rem; background: var(--panel); }
-.status { margin: .75rem .1rem 1rem; min-height: 1.2em; }
-.chart {
-  height: clamp(12rem, 31vh, 21rem); margin-top: 1.2rem; pointer-events: none;
-  background: url("../art/star-chart.webp") center 45% / cover no-repeat;
-  opacity: .62; mask-image: radial-gradient(ellipse at 50% 24%, black 8%, transparent 72%);
+.status:not(:empty) { margin: .75rem .1rem 1rem; color: var(--muted); }
+.house {
+  height: clamp(17rem, 42vw, 32rem); margin-top: 1rem; border-radius: var(--radius);
+  background: linear-gradient(to top, var(--bg), transparent 12%), url("../art/fc-house.webp") center 55% / cover no-repeat;
+}
+.frame {
+  overflow: hidden; margin-top: 1rem; background: var(--panel);
+  border: 1px solid #806e4d; border-radius: var(--radius);
+}
+.banner {
+  position: relative; isolation: isolate; display: flex; align-items: center;
+  min-height: clamp(7rem, 14vw, 10.5rem); background: #171824;
+}
+.banner::before {
+  content: ""; position: absolute; z-index: 1; inset: .45rem auto auto .45rem; width: .8rem; height: .8rem;
+  border-top: 1px solid var(--gold); border-left: 1px solid var(--gold);
+}
+.banner::after {
+  content: ""; position: absolute; inset: auto 0 0; height: 2px;
+  background: linear-gradient(90deg, #806e4d, var(--gold) 35%, #806e4d 75%);
+}
+.scene {
+  position: absolute; z-index: -1; inset: 0 0 0 34%;
+  mask-image: linear-gradient(90deg, transparent, black 28%);
+}
+.scene img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 54% 63%; }
+.caption { box-sizing: border-box; width: 40%; padding: 1.15rem 1.4rem; }
+.caption strong { display: block; font: 500 clamp(1.35rem, 3vw, 2rem)/1.1 var(--display-font); }
+.caption span { display: block; margin-top: .35rem; color: var(--text); font-size: .9rem; }
+.frame > article { margin: 0; border: 0; border-radius: 0; }
+.frame > article + article { border-top: 1px solid var(--border); }
+@media (max-width: 700px) {
+  .house { height: clamp(17rem, 82vw, 22rem); }
+  .banner { min-height: 7rem; }
+  .caption { width: 51%; padding: 1rem .8rem; }
+  .caption span { font-size: .85rem; }
+  .scene { left: 47%; }
 }
