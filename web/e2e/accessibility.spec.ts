@@ -47,6 +47,9 @@ for (const width of [320, 1280]) {
     await key.press("Enter");
     await expect(page).toHaveTitle("Search · FC Hub");
     const search = page.getByRole("searchbox");
+    await search.fill("no such item");
+    await expect(page.getByRole("status")).toContainText("No items found");
+    await checkView(page);
     await search.fill("iron ore");
     const table = page.getByRole("table", { name: "Iron Ore holdings" });
     await expect(table.getByRole("columnheader", { name: "Held by" })).toHaveCount(1);

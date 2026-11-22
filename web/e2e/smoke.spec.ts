@@ -86,3 +86,33 @@ test("wondrous tails: duties in common for the chosen party", async ({ page }) =
   );
   expect(errors).toEqual([]);
 });
+
+test("Search shows the matching still scene and keeps focus as the query changes", async ({ page }) => {
+  await signIn(page);
+  const search = page.getByRole("searchbox");
+  const status = page.getByRole("status");
+  const scene = page.locator("main img").first();
+  const searchFor = async (term: string) => {
+    const response = page.waitForResponse(
+      (res) => new URL(res.url()).searchParams.get("q") === term && res.url().includes("/api/v1/search?"),
+    );
+    await search.fill(term);
+    await response;
+  };
+
+  await searchFor("iron orre");
+  await expect(status).toContainText("No items found");
+  await expect(scene).toHaveAttribute("src", /class-change-still.*\.webp$/);
+  await expect(search).toBeFocused();
+
+  await searchFor("iron ore");
+  await expect(status).toContainText("1 item found");
+  await expect(page.getByRole("table", { name: "Iron Ore holdings" })).toBeVisible();
+
+  await expect(scene).toHaveAttribute("src", /aquarium.*\.webp$/);
+
+  await search.fill("");
+  await expect(status).toBeEmpty();
+  await expect(scene).toHaveCount(0);
+  await expect(search).toBeFocused();
+});

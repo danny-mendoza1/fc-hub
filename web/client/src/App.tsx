@@ -75,7 +75,13 @@ export function App() {
         Skip to main content
       </a>
       <TopBar member={member} view={view} onNavigate={(v) => setRoute((r) => ({ ...r, view: v }))} onSignOut={signOut} />
-      <main id="main-content" ref={mainRef} tabIndex={-1} aria-label={pageName} className={styles.main}>
+      <main
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}
+        aria-label={pageName}
+        className={member ? `${styles.main} ${styles.hall}` : styles.main}
+      >
         <SessionContext value={session}>
           {auth.status === "signedOut" && <LoginView onSignedIn={(m) => setAuth({ status: "signedIn", member: m })} />}
           {member && view === "search" && <SearchView query={query} onQueryChange={(q) => setRoute((r) => ({ ...r, query: q }))} />}
