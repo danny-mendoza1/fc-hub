@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { addMember, call, createEnv } from "./helpers.ts";
+import { ALICE, ALICE_RETAINER, addMember, call, createEnv, item, upload } from "./helpers.ts";
 
 /**
- * The exact JSON the C# plugin sends. plugin/FcHub.Tests serializes the same payloads and checks
- * they match these files, so the plugin and the server can't drift apart without a test failing.
+ * The exact JSON the C# plugin sends, and the JSON it reads back. plugin/FcHub.Tests serializes the
+ * same payloads and parses the same responses, so the plugin and the server can't drift apart
+ * without a test failing.
  */
 const fixture = (name: string) => JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", name), "utf8"));
 
@@ -58,5 +59,47 @@ describe("plugin contract", () => {
         ["Objective 5", "open"],
       ],
     );
+  });
+
+  it("answers the plugin's tooltip request with the holdings it parses (fc-holdings v1)", async () => {
+    const env = createEnv();
+    const alice = await addMember(env, "Alice");
+    const bob = await addMember(env, "Bob");
+    const capturedAt = "2026-11-20T18:20:42.000Z";
+    await call(env, "POST", "/api/v1/snapshots", {
+      token: alice,
+      body: upload(
+        ALICE,
+        "Alice Example",
+        [
+          {
+            ownerId: ALICE,
+            kind: "character",
+            name: "Alice Example",
+            sections: [
+              {
+                section: "CharacterBags",
+                items: [
+                  item(4554, "Cordial", 17, "Inventory · bag 1 · slot 2"),
+                  item(4554, "Cordial", 2, "Inventory · bag 1 · slot 3", { isHq: true, sortedSlot: 1 }),
+                ],
+              },
+              { section: "Crystals", items: [item(2, "Fire Shard", 900, "Crystals")] },
+            ],
+          },
+          {
+            ownerId: ALICE_RETAINER,
+            kind: "retainer",
+            name: "Sir-noodle",
+            sections: [{ section: "RetainerBags", items: [item(4554, "Cordial", 40, "Retainer · page 1 · slot 1")] }],
+          },
+        ],
+        capturedAt,
+      ),
+    });
+
+    const res = await call(env, "GET", "/api/v1/items/fc-holdings", { token: bob });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(res.body, fixture("plugin-fc-holdings-v1.json"));
   });
 });

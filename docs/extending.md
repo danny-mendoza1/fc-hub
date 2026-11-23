@@ -10,6 +10,7 @@ How a new kind of shared data (say, dungeon unlocks) goes end to end, using the 
 | Payload records | `plugin/FcHub/Upload/` (like `WondrousTailsModels.cs`) | Give it a `CurrentSchemaVersion`. Serialize with `UploadJson.Options` (camelCase, enums as strings). |
 | Sync loop | `plugin/FcHub/` (like `WondrousTailsSync.cs`) | Read on a timer, hash the payload (ignoring the capture time) and skip unchanged data. **Send through the shared `UploadChannel`**, never your own `HttpClient` call: it handles one-at-a-time, backoff, a rejected key and the server's `Retry-After`. Manual triggers pass `manual: true`. |
 | Wire it up | `Plugin.cs` | Construct it with the shared `HubClient` and `UploadChannel`; dispose it. Add it to `/fchub upload` if it should sync on demand. |
+| Reading data back | `plugin/FcHub/` (like `FcHoldingsSync.cs`) | Download on a timer through the same `UploadChannel`, keep the result in memory, and never call the server from a game event (a tooltip, a window). The response records go in `plugin/FcHub/Upload/` and get a contract fixture the other way round: the server's test writes it, the plugin's test parses it (`plugin-fc-holdings-v1.json`). |
 
 ## 2. Server: accept it and store it
 

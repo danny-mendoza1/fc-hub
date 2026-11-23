@@ -20,6 +20,9 @@ public sealed class UploadChannel : IDisposable
     private static readonly TimeSpan MinBackoff = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(10);
 
+    /// <summary>How long a sender waits before trying again when another send is <see cref="InFlight"/>.</summary>
+    public static readonly TimeSpan BusyRetryDelay = TimeSpan.FromSeconds(5);
+
     private readonly Configuration configuration;
     private readonly IFramework framework;
     private readonly IPluginLog log;
