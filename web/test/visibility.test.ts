@@ -28,10 +28,12 @@ describe("revoked members", () => {
     });
     assert.equal((await call(env, "POST", "/api/v1/admin/members/2/revoke", { token: ADMIN_TOKEN })).status, 200);
 
-    // Every member-facing GET route, with Bob's ids wherever a route takes one.
+    // Every member-facing GET route (browser or plugin), with Bob's ids wherever a route takes one.
     const samples: Record<string, string> = { ownerId: BOB_RETAINER, iconId: "1000" };
     const queries: Record<string, string> = { "/api/v1/search": "?q=ore" };
-    for (const r of routeTable().filter((r) => r.method === "GET" && r.policy.access === "memberOrCookie")) {
+    for (const r of routeTable().filter(
+      (r) => r.method === "GET" && (r.policy.access === "memberOrCookie" || r.policy.access === "member"),
+    )) {
       for (const ownerId of r.path.includes(":ownerId") ? [BOB, BOB_RETAINER, FC] : [""]) {
         const path =
           r.path.replace(/:(\w+)/g, (_m, key: string) => {

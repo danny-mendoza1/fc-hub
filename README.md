@@ -46,6 +46,7 @@ Each member runs a lightweight Dalamud plugin that collects what their character
   - [x] Plugin reads and shares one journal per member (alts ignored)
   - [x] Website: each member's book, this week / last week / turned in, duties in common for a chosen party, second chances
   - [ ] Category-to-duty matching (e.g. "Dungeons (Lv. 81–89)" ↔ "The Tower of Zot")
+- **In-game tooltips** *(in progress)*: item tooltips show which FC mates hold the item and where, next to Allagan Tools' own block ([plan](docs/plans/fc-mate-tooltips.md), [ADR 0009](docs/adr/0009-plugin-reads-fc-holdings.md))
 - **Later ideas:** dungeon/trial/raid unlock comparison, quest prerequisites, homelab hosting with zero-trust access.
 
 ## Building the plugin

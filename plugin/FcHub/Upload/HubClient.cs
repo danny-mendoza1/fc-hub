@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -16,7 +17,8 @@ public sealed class HubClient : IDisposable
 
     public HubClient(string pluginVersion)
     {
-        http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        // Responses come back compressed when we ask (Cloudflare and the Node server both honour it).
+        http = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(30) };
         http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("FcHub", pluginVersion));
     }
 
@@ -50,6 +52,13 @@ public sealed class HubClient : IDisposable
     {
         var request = new HttpRequestMessage(HttpMethod.Get, new Uri(server, "api/v1/me"));
         return SendAsync<MeResponse>(request, apiKey, cancellationToken);
+    }
+
+    /// <summary>The other members' storage and crystals, for item tooltips.</summary>
+    public Task<HubResponse<FcHoldingsWire>> GetFcHoldingsAsync(Uri server, string apiKey, CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, new Uri(server, "api/v1/items/fc-holdings"));
+        return SendAsync<FcHoldingsWire>(request, apiKey, cancellationToken);
     }
 
     /// <summary>Uploads a gzip-compressed inventory snapshot.</summary>

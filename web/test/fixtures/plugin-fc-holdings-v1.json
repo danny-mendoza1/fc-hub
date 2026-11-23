@@ -1,0 +1,57 @@
+{
+  "sections": [
+    {
+      "ownerId": "18014498500000001",
+      "ownerKind": "character",
+      "ownerName": "Alice Example",
+      "section": "CharacterBags",
+      "memberId": 1,
+      "member": "Alice",
+      "character": "Alice Example",
+      "updatedAt": "2026-11-20T18:20:42.000Z"
+    },
+    {
+      "ownerId": "33777097200000001",
+      "ownerKind": "retainer",
+      "ownerName": "Sir-noodle",
+      "section": "RetainerBags",
+      "memberId": 1,
+      "member": "Alice",
+      "character": "Alice Example",
+      "updatedAt": "2026-11-20T18:20:42.000Z"
+    },
+    {
+      "ownerId": "18014498500000001",
+      "ownerKind": "character",
+      "ownerName": "Alice Example",
+      "section": "Crystals",
+      "memberId": 1,
+      "member": "Alice",
+      "character": "Alice Example",
+      "updatedAt": "2026-11-20T18:20:42.000Z"
+    }
+  ],
+  "items": [
+    {
+      "itemId": 4554,
+      "name": "Cordial",
+      "iconId": 5554,
+      "isHq": false,
+      "places": [[0, 17, 1], [1, 40, 1]]
+    },
+    {
+      "itemId": 4554,
+      "name": "Cordial",
+      "iconId": 5554,
+      "isHq": true,
+      "places": [[0, 2, 1]]
+    },
+    {
+      "itemId": 2,
+      "name": "Fire Shard",
+      "iconId": 1002,
+      "isHq": false,
+      "places": [[2, 900, 1]]
+    }
+  ]
+}

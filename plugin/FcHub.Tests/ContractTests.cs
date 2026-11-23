@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FcHub.Game;
 using FcHub.Snapshot;
+using FcHub.Tooltips;
 using FcHub.Upload;
 using Xunit;
 
@@ -86,5 +87,26 @@ public class ContractTests
             Slots: slots);
 
         AssertSameJson(Fixture("plugin-wondrous-tails-v1.json"), payload);
+    }
+
+    /// <summary>The other direction: the plugin reads the response the server's test produces.</summary>
+    [Fact]
+    public void ReadsTheServersFcHoldingsFixture()
+    {
+        var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "plugin-fc-holdings-v1.json"));
+        var wire = JsonSerializer.Deserialize<FcHoldingsWire>(json, UploadJson.Options)!;
+
+        Assert.Equal(OwnerKind.Retainer, wire.Sections[1].OwnerKind);
+        Assert.Equal(new DateTimeOffset(2026, 11, 20, 18, 20, 42, TimeSpan.Zero), wire.Sections[0].UpdatedAt);
+
+        var holdings = FcHoldings.From(wire);
+        Assert.Equal((2, 1), (holdings.ItemCount, holdings.MemberCount));
+        Assert.Equal(
+            "FC mates: 59\n" +
+            "      Alice Example · Retainer Sir-noodle · 40\n" +
+            "      Alice Example · Inventory · 17\n" +
+            "      Alice Example · Inventory · 2 \uE03C",
+            holdings.TextFor(4554, wire.Sections[0].UpdatedAt));
+        Assert.Equal("FC mates: 900\n      Alice Example · Crystals · 900", holdings.TextFor(2, wire.Sections[0].UpdatedAt));
     }
 }

@@ -11,6 +11,7 @@ export type {
   AlsoInResponse,
   AlsoInWire,
   CommonItem,
+  FcHoldingsWire,
   ItemHolder,
   ItemPlace,
   ItemsInCommonResponse,
@@ -51,7 +52,7 @@ export interface OverviewResponse {
   characters: OverviewCharacter[];
 }
 
-/** GET /api/v1/owners/:ownerId/items is `OwnerItems`; /also-in is `AlsoInWire`. GET /api/v1/items/in-common is `ItemsInCommonWire` (both expanded by the client with `expandPlaces`). GET /api/v1/icons/:iconId is image/png. */
+/** GET /api/v1/owners/:ownerId/items is `OwnerItems`; /also-in is `AlsoInWire`. GET /api/v1/items/in-common is `ItemsInCommonWire` (both expanded by the client with `expandPlaces`). GET /api/v1/items/fc-holdings is `FcHoldingsWire` (read by the plugin). GET /api/v1/icons/:iconId is image/png. */
 
 /** Every error response. */
 export interface ErrorResponse {

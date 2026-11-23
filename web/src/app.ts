@@ -21,7 +21,7 @@ import type { SqlDatabase } from "./db/types.ts";
 import { HttpError } from "./http-error.ts";
 import { type Fetcher, fetchIcon, ICON_ID_PATTERN } from "./icons.ts";
 import { ingestUpload } from "./ingest.ts";
-import { alsoIn, itemsInCommon } from "./item-overlap-store.ts";
+import { alsoIn, fcHoldings, itemsInCommon } from "./item-overlap-store.ts";
 import { type Limits, resolveLimits } from "./limits.ts";
 import { overview, ownerItems } from "./owners.ts";
 import { MAX_QUERY_LENGTH, searchItems } from "./search.ts";
@@ -260,6 +260,11 @@ route("GET", "/api/v1/owners/:ownerId/also-in", { access: "memberOrCookie", writ
 
 /** Items that two or more members (or the FC chest) store; the chosen party is applied in the browser. */
 route("GET", "/api/v1/items/in-common", { access: "memberOrCookie", writes: "none" }, async ({ db }) => json(await itemsInCommon(db)));
+
+/** The other members' storage, for the plugin's item tooltips (bearer key only: the plugin is the only caller). */
+route("GET", "/api/v1/items/fc-holdings", { access: "member", writes: "none" }, async ({ db, member }) =>
+  json(await fcHoldings(db, member.id)),
+);
 
 /** Item icon by game icon id, proxied from XIVAPI (see icons.ts). Members only, so it isn't a public proxy. */
 route("GET", "/api/v1/icons/:iconId", { access: "memberOrCookie", writes: "none" }, async ({ env, params }) => {

@@ -5,6 +5,7 @@ using Dalamud.Plugin.Services;
 using FcHub.Allagan;
 using FcHub.Game;
 using FcHub.Snapshot;
+using FcHub.Tooltips;
 using FcHub.Upload;
 using FcHub.Windows;
 
@@ -13,6 +14,9 @@ namespace FcHub;
 public sealed class Plugin : IDalamudPlugin
 {
     private const string Command = "/fchub";
+
+    /// <summary>UIColor row for FC Hub's tooltip lines, picked in game next to Allagan Tools' block (test plan 07).</summary>
+    private const ushort TooltipColour = 500;
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly ICommandManager commandManager;
@@ -26,6 +30,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Uploader uploader;
     private readonly SyncService sync;
     private readonly WondrousTailsSync wondrousTails;
+    private readonly FcHoldingsSync fcHoldings;
+    private readonly ItemTooltip itemTooltip;
     private readonly MainWindow mainWindow;
     private readonly ConfigWindow configWindow;
 
@@ -37,6 +43,8 @@ public sealed class Plugin : IDalamudPlugin
         IClientState clientState,
         IPlayerState playerState,
         IDataManager dataManager,
+        IAddonLifecycle addonLifecycle,
+        IGameGui gameGui,
         IPluginLog log)
     {
         this.pluginInterface = pluginInterface;
@@ -55,15 +63,17 @@ public sealed class Plugin : IDalamudPlugin
         sync = new SyncService(framework, chat, log, allagan, builder, uploader, pluginInterface.ConfigDirectory);
         wondrousTails = new WondrousTailsSync(
             framework, clientState, playerState, pluginInterface, log, configuration, hubClient, uploadChannel, new WondrousTailsReader(dataManager), version);
+        fcHoldings = new FcHoldingsSync(framework, clientState, configuration, hubClient, uploadChannel);
+        itemTooltip = new ItemTooltip(addonLifecycle, gameGui, dataManager, log, fcHoldings.TooltipText, TooltipColour);
 
-        configWindow = new ConfigWindow(configuration, pluginInterface, playerState, hubClient, uploader, sync, wondrousTails);
-        mainWindow = new MainWindow(allagan, names, sync, uploader, wondrousTails, configuration, configWindow.Toggle);
+        configWindow = new ConfigWindow(configuration, pluginInterface, playerState, hubClient, uploader, sync, wondrousTails, fcHoldings);
+        mainWindow = new MainWindow(allagan, names, sync, uploader, wondrousTails, fcHoldings, configuration, configWindow.Toggle);
         windowSystem.AddWindow(mainWindow);
         windowSystem.AddWindow(configWindow);
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the FC Hub window. '/fchub config' opens settings, '/fchub upload' uploads now, '/fchub dump' writes the snapshot JSON.",
+            HelpMessage = "Toggle the FC Hub window. '/fchub config' opens settings, '/fchub upload' uploads now (and refreshes FC mates' items for tooltips), '/fchub dump' writes the snapshot JSON.",
         });
 
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
@@ -85,6 +95,7 @@ public sealed class Plugin : IDalamudPlugin
             case "upload":
                 sync.RequestRefresh(upload: true);
                 wondrousTails.RequestRead();
+                fcHoldings.RequestRefresh();
                 break;
             case "dump":
                 sync.RequestRefresh(writeFile: true);
@@ -103,6 +114,8 @@ public sealed class Plugin : IDalamudPlugin
         commandManager.RemoveHandler(Command);
         windowSystem.RemoveAllWindows();
 
+        itemTooltip.Dispose();
+        fcHoldings.Dispose();
         sync.Dispose();
         wondrousTails.Dispose();
         uploadChannel.Dispose();

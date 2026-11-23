@@ -25,11 +25,13 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly Uploader uploader;
     private readonly SyncService sync;
     private readonly WondrousTailsSync wondrousTails;
+    private readonly FcHoldingsSync fcHoldings;
     private readonly CancellationTokenSource disposing = new();
 
     private string serverUrl = string.Empty;
     private string apiKey = string.Empty;
     private bool uploadEnabled;
+    private bool showFcMatesInTooltips;
     private bool showKey;
     private string? saveError;
 
@@ -45,7 +47,8 @@ public sealed class ConfigWindow : Window, IDisposable
         HubClient client,
         Uploader uploader,
         SyncService sync,
-        WondrousTailsSync wondrousTails)
+        WondrousTailsSync wondrousTails,
+        FcHoldingsSync fcHoldings)
         : base("FC Hub settings##FcHubConfig", ImGuiWindowFlags.AlwaysAutoResize)
     {
         this.configuration = configuration;
@@ -55,6 +58,7 @@ public sealed class ConfigWindow : Window, IDisposable
         this.uploader = uploader;
         this.sync = sync;
         this.wondrousTails = wondrousTails;
+        this.fcHoldings = fcHoldings;
     }
 
     public override void OnOpen()
@@ -62,6 +66,7 @@ public sealed class ConfigWindow : Window, IDisposable
         serverUrl = configuration.ServerUrl;
         apiKey = configuration.ApiKey;
         uploadEnabled = configuration.UploadEnabled;
+        showFcMatesInTooltips = configuration.ShowFcMatesInTooltips;
         saveError = null;
     }
 
@@ -82,6 +87,8 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.Spacing();
         ImGui.Checkbox("Upload my inventories automatically", ref uploadEnabled);
+        ImGui.Checkbox("Show FC mates' items in item tooltips", ref showFcMatesInTooltips);
+        ImGui.TextColored(Muted, "Who else in the FC has the item you hover, and where. Needs uploads on.");
 
         ImGui.Spacing();
         if (ImGui.Button("Save"))
@@ -164,6 +171,7 @@ public sealed class ConfigWindow : Window, IDisposable
         configuration.ServerUrl = serverUrl.Trim();
         configuration.ApiKey = trimmedKey;
         configuration.UploadEnabled = uploadEnabled;
+        configuration.ShowFcMatesInTooltips = showFcMatesInTooltips;
         if (serverChanged)
         {
             // A different server has none of our data; start over.
@@ -173,6 +181,7 @@ public sealed class ConfigWindow : Window, IDisposable
         pluginInterface.SavePluginConfig(configuration);
         uploader.SettingsChanged();
         sync.RequestRefresh(upload: true);
+        fcHoldings.RequestRefresh();
     }
 
     private void TestConnection()

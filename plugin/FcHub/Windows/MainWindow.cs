@@ -22,6 +22,7 @@ public sealed class MainWindow : Window
     private readonly SyncService probe;
     private readonly Uploader uploader;
     private readonly WondrousTailsSync wondrousTails;
+    private readonly FcHoldingsSync fcHoldings;
     private readonly Configuration configuration;
     private readonly Action openSettings;
 
@@ -31,6 +32,7 @@ public sealed class MainWindow : Window
         SyncService probe,
         Uploader uploader,
         WondrousTailsSync wondrousTails,
+        FcHoldingsSync fcHoldings,
         Configuration configuration,
         Action openSettings)
         : base("FC Hub##FcHubMain")
@@ -40,6 +42,7 @@ public sealed class MainWindow : Window
         this.probe = probe;
         this.uploader = uploader;
         this.wondrousTails = wondrousTails;
+        this.fcHoldings = fcHoldings;
         this.configuration = configuration;
         this.openSettings = openSettings;
         SizeConstraints = new WindowSizeConstraints
@@ -55,6 +58,7 @@ public sealed class MainWindow : Window
     {
         DrawStatus();
         DrawUploadStatus();
+        DrawTooltipStatus();
         ImGui.Separator();
 
         if (ImGui.Button("Refresh"))
@@ -182,6 +186,16 @@ public sealed class MainWindow : Window
             ImGui.SameLine();
             ImGui.TextColored(Muted,
                 $"(last upload {(DateTimeOffset.UtcNow - at).TotalMinutes:0} min ago: {status.LastSections:N0} sections, {status.LastItems:N0} items)");
+        }
+    }
+
+    private void DrawTooltipStatus()
+    {
+        StatusLine($"Tooltips: {fcHoldings.Status}", !fcHoldings.StatusIsError);
+        if (fcHoldings.UpdatedAt is { } at)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Muted, $"(updated {(DateTimeOffset.UtcNow - at).TotalMinutes:0} min ago)");
         }
     }
 

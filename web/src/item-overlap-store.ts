@@ -3,12 +3,14 @@ import type { SqlDatabase } from "./db/types.ts";
 import {
   type AlsoInWire,
   compactPlaces,
+  type FcHoldingsWire,
   holderKey,
   holdersOf,
   type ItemsInCommonWire,
   itemKey,
   type PlacedItem,
   STORAGE_SECTIONS,
+  TOOLTIP_SECTIONS,
 } from "./item-overlap.ts";
 
 interface PlaceRow {
@@ -28,17 +30,19 @@ interface PlaceRow {
   member_name: string;
 }
 
-// Constant list (not user input), so it's inlined rather than bound.
-const STORAGE_SQL = STORAGE_SECTIONS.map((s) => `'${s}'`).join(", ");
+/** A constant section list (never user input) as SQL, so it's inlined rather than bound. */
+function sqlList(sections: readonly string[]): string {
+  return sections.map((s) => `'${s}'`).join(", ");
+}
 
-/** Item (+HQ) × owner × section totals in storage sections, optionally limited further. */
-function placesQuery(filter: string): string {
+/** Item (+HQ) × owner × section totals in the given sections, optionally limited further. */
+function placesQuery(sections: readonly string[], filter: string): string {
   return `SELECT i.item_id, MAX(i.name) AS name, MAX(i.icon_id) AS icon_id, i.is_hq,
                  i.owner_id, o.kind AS owner_kind, o.name AS owner_name, i.section,
                  SUM(i.quantity) AS quantity, COUNT(*) AS stacks,
                  s.captured_at, c.name AS character_name, m.id AS member_id, m.display_name AS member_name
           ${FROM_ACTIVE_ITEMS}
-          WHERE i.section IN (${STORAGE_SQL}) ${filter}
+          WHERE i.section IN (${sqlList(sections)}) ${filter}
           GROUP BY i.item_id, i.is_hq, i.owner_id, i.section
           ORDER BY name, i.is_hq, member_name, o.kind, o.name, i.section`;
 }
@@ -71,7 +75,7 @@ function group(rows: PlaceRow[]): PlacedItem[] {
 /** For the item drill-down: every storage place of the items (+HQ) this owner holds, in any section. */
 export async function alsoIn(db: SqlDatabase, ownerId: string): Promise<AlsoInWire> {
   const rows = await db
-    .prepare(placesQuery("AND (i.item_id, i.is_hq) IN (SELECT item_id, is_hq FROM items WHERE owner_id = ?1)"))
+    .prepare(placesQuery(STORAGE_SECTIONS, "AND (i.item_id, i.is_hq) IN (SELECT item_id, is_hq FROM items WHERE owner_id = ?1)"))
     .bind(ownerId)
     .all<PlaceRow>();
   // The owner's own storage comes back too: the browser leaves out the section being viewed, and an
@@ -81,10 +85,23 @@ export async function alsoIn(db: SqlDatabase, ownerId: string): Promise<AlsoInWi
 
 /** For "Items in common": items that two or more holders (members, FC chest, houses) store. */
 export async function itemsInCommon(db: SqlDatabase): Promise<ItemsInCommonWire> {
-  const rows = await db.prepare(placesQuery("")).all<PlaceRow>();
+  const rows = await db.prepare(placesQuery(STORAGE_SECTIONS, "")).all<PlaceRow>();
   const all = group(rows.results);
   return {
     holders: holdersOf(all),
     ...compactPlaces(all.filter((item) => new Set(item.places.map(holderKey)).size >= 2)),
   };
+}
+
+/**
+ * For the plugin's item tooltips: every other member's storage and crystals. The caller's own
+ * characters and the shared FC chest / houses are left out, because Allagan Tools already shows
+ * them in the same tooltip.
+ */
+export async function fcHoldings(db: SqlDatabase, memberId: number): Promise<FcHoldingsWire> {
+  const rows = await db
+    .prepare(placesQuery(TOOLTIP_SECTIONS, "AND m.id != ?1 AND o.kind NOT IN ('freeCompany', 'housing')"))
+    .bind(memberId)
+    .all<PlaceRow>();
+  return compactPlaces(group(rows.results));
 }

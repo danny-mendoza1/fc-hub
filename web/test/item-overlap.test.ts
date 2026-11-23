@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { commonItems, compactPlaces, expandPlaces, type ItemPlace, otherPlaces, type PlacedItem } from "../src/item-overlap.ts";
-import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, FC, item, upload } from "./helpers.ts";
+import { ADMIN_TOKEN, ALICE, ALICE_RETAINER, addMember, BOB, call, createEnv, FC, item, send, upload } from "./helpers.ts";
 
 const IRON_ORE = 5111;
 const POTION = 4551;
@@ -172,6 +172,40 @@ describe("items in common / also in", () => {
       ["Alice"],
     );
     assert.deepEqual(res.body.items, []);
+  });
+
+  it("gives the plugin the other members' storage and crystals, not the caller's or shared storage", async () => {
+    const asBob = expandPlaces((await call(env, "GET", "/api/v1/items/fc-holdings", { token: bob })).body);
+    assert.deepEqual(
+      asBob.map((i) => [i.name, i.isHq, i.places.map((p: ItemPlace) => [p.member, p.ownerName, p.section, p.quantity])]),
+      [
+        ["Fire Shard", false, [["Alice", "Alice Example", "Crystals", 900]]],
+        [
+          "Iron Ore",
+          false,
+          [
+            ["Alice", "Alice Example", "CharacterBags", 15],
+            ["Alice", "Sir-noodle", "RetainerBags", 99],
+          ],
+        ],
+        ["Potion", false, [["Alice", "Alice Example", "CharacterBags", 3]]],
+      ],
+      "Bob's own items are left out, and so are market listings",
+    );
+
+    // Bob reported the FC chest, but it's shared storage: Allagan Tools already shows it.
+    const asAlice = expandPlaces((await call(env, "GET", "/api/v1/items/fc-holdings", { token: alice })).body);
+    assert.deepEqual(
+      asAlice.flatMap((i) => i.places.map((p: ItemPlace) => `${i.name}${i.isHq ? " (HQ)" : ""} · ${p.member} · ${p.section}`)),
+      ["Fire Shard · Bob · Crystals", "Iron Ore · Bob · CharacterSaddleBags", "Potion (HQ) · Bob · CharacterSaddleBags"],
+    );
+  });
+
+  it("serves the plugin's holdings to API keys only", async () => {
+    assert.equal((await call(env, "GET", "/api/v1/items/fc-holdings")).status, 401);
+    const signIn = await send(env, "POST", "/api/v1/session", { body: { apiKey: alice } });
+    const cookie = signIn.headers.get("set-cookie")!.split(";")[0]!;
+    assert.equal((await call(env, "GET", "/api/v1/items/fc-holdings", { headers: { cookie } })).status, 401, "a browser session can't");
   });
 
   it("sends each section once and expands back to the same places", async () => {

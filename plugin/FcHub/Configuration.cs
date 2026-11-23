@@ -29,6 +29,9 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool UploadEnabled { get; set; }
 
+    /// <summary>Add the other members' items to item tooltips (needs uploads on; see FcHoldingsSync).</summary>
+    public bool ShowFcMatesInTooltips { get; set; } = true;
+
     /// <summary>
     /// Hash of each section as last accepted by the server, keyed "contentId/ownerId/section".
     /// Only sections whose hash changed are uploaded.

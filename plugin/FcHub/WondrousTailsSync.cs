@@ -187,7 +187,7 @@ public sealed class WondrousTailsSync : IDisposable
             if (channel.InFlight)
             {
                 // The inventory upload is using the channel; try again shortly (still manual if it was).
-                nextRead = now + TimeSpan.FromSeconds(5);
+                nextRead = now + UploadChannel.BusyRetryDelay;
                 manualRequested |= manual;
                 return;
             }

@@ -22,6 +22,13 @@ export const STORAGE_SECTIONS: readonly string[] = [
   "HousingExteriorStoreroom",
 ];
 
+/**
+ * Sections behind the plugin's item tooltips (other members' holdings): storage plus crystals.
+ * Crafters hover a crystal to see who has spares, so crystals count here even though "in common"
+ * leaves them out.
+ */
+export const TOOLTIP_SECTIONS: readonly string[] = [...STORAGE_SECTIONS, "Crystals"];
+
 /** One item (+HQ) in one section of one owner, all stacks added up. */
 export interface ItemPlace {
   ownerId: string;
@@ -90,6 +97,9 @@ export type AlsoInWire = PlacesWire;
 
 /** GET /api/v1/items/in-common */
 export type ItemsInCommonWire = PlacesWire & { holders: ItemHolder[] };
+
+/** GET /api/v1/items/fc-holdings: the other members' storage, for the plugin's item tooltips. */
+export type FcHoldingsWire = PlacesWire;
 
 /** Packs places for the wire (the server side of {@link expandPlaces}). */
 export function compactPlaces(items: PlacedItem[]): PlacesWire {
