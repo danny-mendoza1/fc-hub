@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <!-- Exact versions (with packages.lock.json); Dependabot bumps them. -->
-    <PackageReference Include="xunit.v3" Version="4.0.2" />
+    <PackageReference Include="xunit.v3" Version="4.0.3" />
   </ItemGroup>
 
   <ItemGroup>
